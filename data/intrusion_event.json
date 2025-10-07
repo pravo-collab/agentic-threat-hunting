@@ -1,0 +1,18 @@
+{
+  "event_id": "evt_003_unauthorized_access",
+  "timestamp": "2025-10-07T11:00:00",
+  "source": "authentication_logs",
+  "event_type": "failed_login_attempts",
+  "raw_data": {
+    "username": "admin",
+    "attempts": 50,
+    "time_window": "5 minutes",
+    "source_countries": ["Russia", "China", "North Korea"],
+    "user_agents": ["curl/7.68.0", "python-requests/2.28.0"],
+    "targeted_services": ["SSH", "RDP", "VPN"]
+  },
+  "source_ip": "198.51.100.75",
+  "destination_ip": "192.168.1.10",
+  "user": "admin",
+  "process": "sshd"
+}

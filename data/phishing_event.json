@@ -1,0 +1,20 @@
+{
+  "event_id": "evt_002_phishing_attempt",
+  "timestamp": "2025-10-07T09:15:00",
+  "source": "email_gateway",
+  "event_type": "suspicious_email",
+  "raw_data": {
+    "sender": "admin@paypa1-security.com",
+    "recipient": "user@company.com",
+    "subject": "Urgent: Verify Your Account",
+    "attachments": ["invoice.pdf.exe"],
+    "links": ["http://paypa1-verify.tk/login"],
+    "spam_score": 8.5,
+    "dkim_result": "fail",
+    "spf_result": "fail"
+  },
+  "source_ip": "203.0.113.45",
+  "destination_ip": "192.168.1.50",
+  "user": "user@company.com",
+  "process": "outlook.exe"
+}
