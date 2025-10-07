@@ -15,6 +15,7 @@ This project implements an agentic AI system that orchestrates multiple speciali
 - **Real-time Monitoring**: Continuous security monitoring and alerting
 - **Threat Intelligence Integration**: Integration with threat intelligence feeds
 - **Forensic Analysis**: Detailed investigation and evidence collection
+- **🎨 Interactive Streamlit UI**: Modern web interface for threat analysis and visualization
 
 ## Architecture
 
@@ -82,19 +83,40 @@ LANGCHAIN_PROJECT=threat-hunting
 
 ## Usage
 
-### Running the System
+### Option 1: Streamlit Web UI (Recommended) 🎨
+
+Launch the interactive web interface:
+
+```bash
+streamlit run app.py
+```
+
+Then open your browser to `http://localhost:8501`
+
+Features:
+- Interactive dashboard
+- Real-time threat analysis
+- Visual workflow tracking
+- Downloadable reports
+- Sample event library
+
+See [STREAMLIT_GUIDE.md](STREAMLIT_GUIDE.md) for detailed UI documentation.
+
+### Option 2: Command Line Interface
+
+#### Running the System
 
 ```bash
 python src/main.py
 ```
 
-### Running with Sample Data
+#### Running with Sample Data
 
 ```bash
 python src/main.py --input data/sample_logs.json
 ```
 
-### Interactive Mode
+#### Interactive Mode
 
 ```bash
 python src/main.py --interactive
