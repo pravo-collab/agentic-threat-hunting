@@ -80,6 +80,8 @@ class NetworkCaptureAgent:
             default_interface = self._get_default_interface()
             interface = state.security_event.raw_data.get("interface", default_interface) if state.security_event else default_interface
             
+            log.info(f"Using network interface: {interface}")
+            
             capture = NetworkCapture(
                 capture_id=capture_id,
                 start_time=start_time,
@@ -87,7 +89,7 @@ class NetworkCaptureAgent:
                 capture_status="active"
             )
             
-            log.info(f"Capture session {capture_id[:8]} started for {capture_time}s (max {packet_limit} packets)")
+            log.info(f"Capture session {capture_id[:8]} started for {capture_time}s (max {packet_limit} packets) on interface {interface}")
             if self.save_pcap:
                 log.info(f"PCAP file will be saved to: {pcap_path}")
             
