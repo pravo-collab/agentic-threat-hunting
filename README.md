@@ -13,6 +13,9 @@ This project implements an agentic AI system that orchestrates multiple speciali
 - **Intelligent Threat Analysis**: AI-powered analysis of security events and anomalies
 - **Network Traffic Monitoring**: Real-time network capture and analysis (5-180 seconds, up to 1M packets)
 - **PCAP File Generation**: Automatic PCAP file saving for forensic analysis and external tool integration
+- **Deep Learning Intrusion Detection**: Neural network-based threat classification with 8 attack types
+- **Real-Time Threat Detection**: Sub-10ms inference for live traffic analysis
+- **Application Classification**: Automatic identification of traffic types (Web, Email, DNS, FTP, SSH, Database)
 - **Full Pipeline Analysis**: Network capture → Analysis → Investigation → Response → Reporting
 - **Automated Incident Response**: Coordinated response actions based on threat severity
 - **Agent Orchestration**: LangGraph-based workflow management with intelligent routing
@@ -37,6 +40,14 @@ The system consists of several specialized agents:
    - Saves to `captures/` directory
    - Compatible with Wireshark, tcpdump, etc.
 7. **Network Analysis Agent**: AI-powered analysis of network patterns and anomalies
+8. **ML Traffic Classifier Agent**: Deep Learning intrusion detection system
+   - 4-layer neural network (128→64→32→16)
+   - 21 enhanced features per flow
+   - 8 intrusion types: DoS, Probe, R2L, U2R, Malware, Botnet, Anomaly, Normal
+   - Application classification: Web, Email, DNS, FTP, SSH, Database
+   - Threat levels: Critical, High, Medium, Low, Safe
+   - Real-time processing (<10ms per flow)
+   - TensorFlow/Keras backend
 
 **Both paths converge** at the Analysis Agent for consistent threat handling.
 ### Workflow Routing

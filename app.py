@@ -3,6 +3,8 @@
 import streamlit as st
 import json
 import uuid
+import numpy as np
+import pandas as pd
 from datetime import datetime
 from pathlib import Path
 import plotly.graph_objects as go
@@ -166,17 +168,17 @@ def main():
     # Header
     st.markdown('<div class="main-header">🛡️ Agentic Threat Hunting & Incident Response</div>', 
                 unsafe_allow_html=True)
-    
     # Sidebar
     with st.sidebar:
         st.image("https://img.icons8.com/color/96/000000/security-checked.png", width=100)
         
         selected = option_menu(
-            menu_title="Navigation",
-            options=["Dashboard", "Analyze Event", "Network Monitor", "History", "Settings"],
-            icons=["speedometer2", "search", "wifi", "clock-history", "gear"],
+            menu_title=None,
+            options=["Dashboard", "Analyze Event", "Network Monitor", "ML Traffic Classifier", "History", "Settings"],
+            icons=["speedometer2", "shield-check", "diagram-3", "robot", "clock-history", "gear"],
             menu_icon="cast",
             default_index=0,
+            orientation="vertical"
         )
         
         st.markdown("---")
@@ -198,6 +200,8 @@ def main():
         show_analyze_event()
     elif selected == "Network Monitor":
         show_network_monitor()
+    elif selected == "ML Traffic Classifier":
+        show_ml_classifier()
     elif selected == "History":
         show_history()
     elif selected == "Settings":
@@ -1252,6 +1256,552 @@ def display_network_analysis_results(state):
         with st.expander("📝 Analysis Log"):
             for msg in state.messages:
                 st.info(msg)
+
+
+def show_ml_classifier():
+    """Show ML Traffic Classifier page."""
+    st.header("🤖 ML Traffic Classifier")
+    
+    st.markdown("""
+    ### Machine Learning-Based Network Traffic Classification
+    
+    This agent uses **Support Vector Machines (SVM)** for intelligent traffic analysis:
+    - **Flow-based analysis** of network patterns
+    - **Baseline modeling** of normal network behavior
+    - **Anomaly detection** using statistical methods
+    - **Multi-class classification**: Normal, Suspicious, Malicious, Anomaly
+    """)
+    
+    tabs = st.tabs(["📊 Analyze PCAP", "🎓 Train Model", "📈 Model Info"])
+    
+    # Tab 1: Analyze PCAP
+    with tabs[0]:
+        st.subheader("Analyze PCAP File")
+        
+        st.info("Upload a PCAP file captured using Scapy or select from existing captures.")
+        
+        # Option to select from captures directory or upload
+        analysis_method = st.radio(
+            "Select PCAP source:",
+            ["From Captures Directory", "Upload New PCAP"],
+            horizontal=True
+        )
+        
+        pcap_file = None
+        
+        if analysis_method == "From Captures Directory":
+            # List available PCAP files
+            import os
+            captures_dir = Path("captures")
+            if captures_dir.exists():
+                pcap_files = list(captures_dir.glob("*.pcap"))
+                if pcap_files:
+                    selected_pcap = st.selectbox(
+                        "Select PCAP file:",
+                        options=[str(f) for f in pcap_files],
+                        format_func=lambda x: os.path.basename(x)
+                    )
+                    pcap_file = selected_pcap
+                else:
+                    st.warning("No PCAP files found in captures directory.")
+            else:
+                st.warning("Captures directory not found.")
+        
+        else:  # Upload New PCAP
+            uploaded_file = st.file_uploader("Upload PCAP file", type=['pcap', 'pcapng'])
+            if uploaded_file:
+                # Save uploaded file temporarily
+                temp_path = Path("captures") / uploaded_file.name
+                temp_path.parent.mkdir(exist_ok=True)
+                with open(temp_path, 'wb') as f:
+                    f.write(uploaded_file.read())
+                pcap_file = str(temp_path)
+                st.success(f"Uploaded: {uploaded_file.name}")
+        
+        if pcap_file and st.button("🔍 Analyze Traffic", type="primary", use_container_width=True):
+            analyze_pcap_with_ml(pcap_file)
+    
+    # Tab 2: Train Model
+    with tabs[1]:
+        st.subheader("Train SVM Model")
+        
+        st.info("""
+        Train the SVM classifier on labeled network traffic data.
+        The model will learn to distinguish between normal, suspicious, malicious, and anomalous traffic.
+        """)
+        
+        st.warning("⚠️ Training requires labeled data. This feature is for demonstration purposes.")
+        
+        if st.button("🎓 Generate Training Data & Train", type="secondary"):
+            train_ml_model()
+    
+    # Tab 3: Model Info
+    with tabs[2]:
+        st.subheader("Model Information")
+        
+        from src.agents.ml_traffic_classifier_agent import MLTrafficClassifierAgent
+        
+        try:
+            agent = MLTrafficClassifierAgent()
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                model_type = "Deep Learning (Neural Network)" if agent.use_deep_learning else "SVM (RBF Kernel)"
+                st.metric("Model Type", model_type)
+                st.metric("Feature Count", len(agent.feature_names))
+                
+                if agent.use_deep_learning:
+                    model_status = "Trained ✅" if hasattr(agent.model, 'predict') else "Not Trained ❌"
+                else:
+                    model_status = "Trained ✅" if hasattr(agent.model, 'classes_') else "Not Trained ❌"
+                st.metric("Model Status", model_status)
+            
+            with col2:
+                st.metric("Traffic Classes", len(agent.traffic_classes))
+                st.metric("Application Types", len(agent.application_types))
+                st.metric("Baseline Status", "Loaded ✅" if agent.baseline else "Not Loaded ❌")
+            
+            with col3:
+                if agent.use_deep_learning:
+                    st.metric("Architecture", "4-Layer DNN")
+                    st.metric("Hidden Layers", "128→64→32→16")
+                    st.metric("Framework", "TensorFlow/Keras")
+            
+            st.markdown("---")
+            st.markdown("### Features Used")
+            
+            features_df = pd.DataFrame({
+                'Feature': agent.feature_names,
+                'Description': [
+                    'Number of packets in flow',
+                    'Total bytes transferred',
+                    'Average packet size',
+                    'Flow duration (seconds)',
+                    'Packets per second rate',
+                    'Bytes per second rate',
+                    'TCP protocol indicator',
+                    'UDP protocol indicator',
+                    'ICMP protocol indicator',
+                    'Destination port range category',
+                    'Flow direction indicator',
+                    'Source port number',
+                    'Destination port number',
+                    'Variance in packet sizes',
+                    'Variance in byte counts',
+                    'Time between packets',
+                    'Packets in forward direction',
+                    'Packets in backward direction',
+                    'Number of SYN flags',
+                    'Number of ACK flags',
+                    'Number of PSH flags'
+                ]
+            })
+            st.dataframe(features_df, use_container_width=True)
+            
+            st.markdown("---")
+            st.markdown("### Traffic Classes (Intrusion Detection)")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                for class_id in range(0, 4):
+                    class_name = agent.traffic_classes.get(class_id, 'unknown')
+                    st.write(f"**{class_id}:** {class_name.upper().replace('_', ' ')}")
+            
+            with col2:
+                for class_id in range(4, len(agent.traffic_classes)):
+                    class_name = agent.traffic_classes.get(class_id, 'unknown')
+                    st.write(f"**{class_id}:** {class_name.upper().replace('_', ' ')}")
+            
+            st.markdown("---")
+            st.markdown("### Application Types")
+            
+            app_types_df = pd.DataFrame([
+                {'Application': app_type.upper(), 'Ports': ', '.join(map(str, ports)) if ports else 'Various'}
+                for app_type, ports in agent.application_types.items()
+            ])
+            st.dataframe(app_types_df, use_container_width=True)
+            
+            if agent.use_deep_learning:
+                st.markdown("---")
+                st.markdown("### Deep Learning Architecture")
+                
+                st.info("""
+                **Neural Network Layers:**
+                - Input Layer: 21 features
+                - Hidden Layer 1: 128 neurons (ReLU + BatchNorm + 30% Dropout)
+                - Hidden Layer 2: 64 neurons (ReLU + BatchNorm + 30% Dropout)
+                - Hidden Layer 3: 32 neurons (ReLU + BatchNorm + 20% Dropout)
+                - Hidden Layer 4: 16 neurons (ReLU + 20% Dropout)
+                - Output Layer: 8 neurons (Softmax)
+                
+                **Optimization:**
+                - Optimizer: Adam (lr=0.001)
+                - Loss: Sparse Categorical Crossentropy
+                - Regularization: L2 (0.001) + Dropout
+                - Metrics: Accuracy, Precision, Recall
+                """)
+            
+        except Exception as e:
+            st.error(f"Error loading model info: {str(e)}")
+
+
+def analyze_pcap_with_ml(pcap_file: str):
+    """Analyze PCAP file using ML classifier."""
+    from src.agents.ml_traffic_classifier_agent import MLTrafficClassifierAgent
+    
+    try:
+        with st.spinner("🔍 Analyzing PCAP file with ML classifier..."):
+            agent = MLTrafficClassifierAgent()
+            
+            # Analyze PCAP
+            results = agent.analyze_pcap(pcap_file)
+            
+            st.success("✅ Analysis Complete!")
+            
+            # File Information Header
+            st.markdown("---")
+            file_info = results['file_info']
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.info(f"📁 **Uploaded File:** {file_info['filename']}")
+            with col2:
+                st.info(f"📊 **File Size:** {file_info['file_size_readable']}")
+            with col3:
+                st.success(f"✅ **Current Status:** {file_info['status']}")
+            
+            # Summary Statistics
+            st.markdown("---")
+            st.markdown("## 📊 Sniffed, Scanned, and Summarized 🔍")
+            
+            packet_details = results['packet_details']
+            summary = results['summary']
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("### Total Packets Processed")
+                st.markdown(f"<h1 style='text-align: center; color: #1f77b4;'>{results['total_packets']}</h1>", unsafe_allow_html=True)
+                
+                st.markdown("### Time Range")
+                if packet_details['time_range']['start'] and packet_details['time_range']['end']:
+                    st.write(f"**Start:** {packet_details['time_range']['start'].strftime('%d %b %Y, %I:%M:%S %p')}")
+                    st.write(f"**End:** {packet_details['time_range']['end'].strftime('%d %b %Y, %I:%M:%S %p')}")
+                else:
+                    st.write("Time range not available")
+            
+            with col2:
+                st.markdown("### Unique Protocols Used")
+                protocol_badges = " ".join([f"`{p}`" for p in packet_details['unique_protocols']])
+                st.markdown(protocol_badges)
+                
+                st.markdown("### Total Data Size")
+                st.markdown(f"<h3 style='text-align: center; color: #2ca02c;'>{packet_details['total_data_size_readable']} ({packet_details['data_size_percentage']:.1f}% of file size)</h3>", unsafe_allow_html=True)
+            
+            # Detailed Analysis
+            st.markdown("---")
+            st.markdown("## 📋 Overview of Captured Traffic")
+            
+            protocol_breakdown = results['protocol_breakdown']
+            total_bytes = packet_details['total_data_size']
+            
+            overview_text = f"The captured traffic consists of **{results['total_packets']} packets**, totaling **{packet_details['total_data_size_readable']}** of data. "
+            overview_text += f"The protocols used are **{', '.join(packet_details['unique_protocols'])}**."
+            
+            st.write(overview_text)
+            
+            # Protocol Breakdown
+            st.markdown("### 🔍 Protocol Breakdown")
+            
+            protocol_counts = protocol_breakdown['protocol_counts']
+            
+            if protocol_counts.get('DNS', 0) > 0:
+                st.markdown(f"**DNS queries** are observed using UDP, targeting domain name servers.")
+                if protocol_breakdown['dns_queries']:
+                    with st.expander("View DNS Queries"):
+                        for query in protocol_breakdown['dns_queries']:
+                            st.write(f"- {query}")
+            
+            if protocol_counts.get('TCP', 0) > 0:
+                st.markdown(f"**TCP connections** are established ({protocol_counts['TCP']} packets).")
+                if protocol_breakdown['tcp_connections']:
+                    with st.expander("View TCP Connections"):
+                        for conn in protocol_breakdown['tcp_connections'][:10]:
+                            st.write(f"- {conn['src']}:{conn['sport']} → {conn['dst']}:{conn['dport']} (Flags: {conn['flags']})")
+            
+            if protocol_counts.get('UDP', 0) > 0:
+                st.markdown(f"**UDP packets** detected ({protocol_counts['UDP']} packets).")
+            
+            # Notable Observations
+            st.markdown("### 👁️ Notable Observations")
+            
+            for observation in results['notable_observations']:
+                st.write(f"- {observation}")
+            
+            # Potential Threats
+            st.markdown("### ⚠️ Potential Threats")
+            
+            for threat in results['potential_threats']:
+                if '⚠️' in threat:
+                    st.warning(threat)
+                else:
+                    st.success(threat)
+            
+            # Packet Content Analysis
+            st.markdown("### 📦 Packet Content Analysis")
+            
+            content_analysis = results['packet_content_analysis']
+            st.write(content_analysis['note'])
+            
+            if content_analysis['packets_with_payload'] > 0:
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("Packets with Payload", content_analysis['packets_with_payload'])
+                with col2:
+                    st.metric("Payload Percentage", f"{content_analysis['payload_percentage']:.1f}%")
+            
+            # Conclusion
+            st.markdown("### 📝 Conclusion")
+            st.markdown(results['conclusion'])
+            
+            # ML Classification Summary
+            st.markdown("---")
+            st.markdown("## 🤖 ML Classification Results")
+            
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                st.metric("Total Flows", results['total_flows'])
+            with col2:
+                st.metric("Anomalies", summary['anomaly_count'])
+            with col3:
+                st.metric("Avg Confidence", f"{summary['average_confidence']:.1%}")
+            with col4:
+                risk_color = {
+                    'low': '🟢',
+                    'medium': '🟡',
+                    'high': '🟠',
+                    'critical': '🔴'
+                }.get(summary['risk_level'], '⚪')
+                st.metric("Risk Level", f"{risk_color} {summary['risk_level'].upper()}")
+            
+            # Class distribution
+            st.markdown("### 📈 Traffic Classification")
+            
+            class_dist = summary['class_distribution']
+            
+            col1, col2 = st.columns([2, 1])
+            
+            with col1:
+                # Create bar chart
+                import plotly.graph_objects as go
+                
+                fig = go.Figure(data=[
+                    go.Bar(
+                        x=list(class_dist.keys()),
+                        y=list(class_dist.values()),
+                        marker_color=['green', 'yellow', 'orange', 'red'][:len(class_dist)]
+                    )
+                ])
+                fig.update_layout(
+                    title="Traffic Classification Distribution",
+                    xaxis_title="Class",
+                    yaxis_title="Count",
+                    height=400
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            
+            with col2:
+                st.markdown("#### Statistics")
+                st.metric("Avg Confidence", f"{summary['average_confidence']:.2%}")
+                st.metric("Avg Deviation", f"{summary['average_baseline_deviation']:.2f}σ")
+                st.metric("Anomaly Rate", f"{summary['anomaly_percentage']:.1f}%")
+            
+            # Detailed classifications
+            st.markdown("### 🔍 Detailed Flow Classifications")
+            
+            classifications = results['classifications']
+            
+            # Filter options
+            filter_class = st.multiselect(
+                "Filter by classification:",
+                options=['normal', 'suspicious', 'malicious', 'anomaly'],
+                default=['suspicious', 'malicious', 'anomaly']
+            )
+            
+            filtered = [c for c in classifications if c['classification'] in filter_class]
+            
+            if filtered:
+                # Create DataFrame
+                df_data = []
+                for c in filtered[:50]:  # Show top 50
+                    df_data.append({
+                        'Flow ID': c['flow_id'][:8] + '...',
+                        'Classification': c['classification'].upper(),
+                        'Confidence': f"{c['confidence']:.2%}",
+                        'Baseline Deviation': f"{c['baseline_deviation']:.2f}σ",
+                        'Anomaly': '🚨' if c['is_anomaly'] else '✅',
+                        'Packets': int(c['features']['packet_count']),
+                        'Bytes': int(c['features']['byte_count'])
+                    })
+                
+                df = pd.DataFrame(df_data)
+                st.dataframe(df, use_container_width=True)
+                
+                # Download results
+                st.download_button(
+                    label="📥 Download Full Results (JSON)",
+                    data=json.dumps(results, indent=2, default=str),
+                    file_name=f"ml_analysis_{Path(pcap_file).stem}.json",
+                    mime="application/json",
+                    use_container_width=True
+                )
+            else:
+                st.info("No flows match the selected filters.")
+            
+    except Exception as e:
+        st.error(f"Error analyzing PCAP: {str(e)}")
+        st.exception(e)
+
+
+def train_ml_model():
+    """Train the ML model with synthetic data."""
+    from src.agents.ml_traffic_classifier_agent import MLTrafficClassifierAgent
+    from src.models.schemas import NetworkFlow, NetworkProtocol
+    
+    try:
+        with st.spinner("🎓 Generating training data and training model..."):
+            agent = MLTrafficClassifierAgent()
+            
+            # Generate synthetic training data
+            flows = []
+            labels = []
+            
+            # Normal traffic (class 0)
+            for i in range(100):
+                flow = NetworkFlow(
+                    flow_id=str(uuid.uuid4()),
+                    start_time=datetime.now(),
+                    end_time=datetime.now(),
+                    protocol=NetworkProtocol.TCP if i % 2 == 0 else NetworkProtocol.UDP,
+                    source_ip=f"192.168.1.{i % 255}",
+                    destination_ip=f"10.0.0.{i % 255}",
+                    source_port=50000 + i,
+                    destination_port=80 if i % 3 == 0 else 443,
+                    packet_count=30 + (i % 50),
+                    byte_count=45000 + (i % 30000),
+                    packets=[],
+                    is_suspicious=False,
+                    anomaly_score=0.1
+                )
+                flows.append(flow)
+                labels.append(0)
+            
+            # Suspicious traffic (class 1)
+            for i in range(50):
+                flow = NetworkFlow(
+                    flow_id=str(uuid.uuid4()),
+                    start_time=datetime.now(),
+                    end_time=datetime.now(),
+                    protocol=NetworkProtocol.TCP,
+                    source_ip=f"192.168.1.{i % 255}",
+                    destination_ip=f"185.{i % 255}.{i % 255}.{i % 255}",
+                    source_port=50000 + i,
+                    destination_port=4444 if i % 2 == 0 else 31337,
+                    packet_count=80 + (i % 100),
+                    byte_count=120000 + (i % 80000),
+                    packets=[],
+                    is_suspicious=True,
+                    anomaly_score=0.6
+                )
+                flows.append(flow)
+                labels.append(1)
+            
+            # Malicious traffic (class 2)
+            for i in range(30):
+                flow = NetworkFlow(
+                    flow_id=str(uuid.uuid4()),
+                    start_time=datetime.now(),
+                    end_time=datetime.now(),
+                    protocol=NetworkProtocol.TCP,
+                    source_ip=f"192.168.1.{i % 255}",
+                    destination_ip=f"203.0.113.{i % 255}",
+                    source_port=50000 + i,
+                    destination_port=1337,
+                    packet_count=200 + (i % 300),
+                    byte_count=300000 + (i % 200000),
+                    packets=[],
+                    is_suspicious=True,
+                    anomaly_score=0.9
+                )
+                flows.append(flow)
+                labels.append(2)
+            
+            # Anomaly traffic (class 3)
+            for i in range(20):
+                flow = NetworkFlow(
+                    flow_id=str(uuid.uuid4()),
+                    start_time=datetime.now(),
+                    end_time=datetime.now(),
+                    protocol=NetworkProtocol.ICMP,
+                    source_ip=f"192.168.1.{i % 255}",
+                    destination_ip=f"10.0.0.{i % 255}",
+                    source_port=None,
+                    destination_port=None,
+                    packet_count=500 + (i % 1000),
+                    byte_count=750000 + (i % 500000),
+                    packets=[],
+                    is_suspicious=True,
+                    anomaly_score=0.95
+                )
+                flows.append(flow)
+                labels.append(3)
+            
+            # Train model
+            results = agent.train_model(flows, labels)
+            
+            st.success("✅ Model trained successfully!")
+            
+            # Display results
+            st.markdown("### 📊 Training Results")
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.metric("Accuracy", f"{results['accuracy']:.2%}")
+            with col2:
+                st.metric("Training Samples", results['train_samples'])
+            with col3:
+                st.metric("Test Samples", results['test_samples'])
+            
+            # Classification report
+            st.markdown("### 📈 Classification Report")
+            
+            report = results['classification_report']
+            report_df = pd.DataFrame(report).transpose()
+            st.dataframe(report_df, use_container_width=True)
+            
+            # Confusion matrix
+            st.markdown("### 🎯 Confusion Matrix")
+            
+            cm = np.array(results['confusion_matrix'])
+            
+            import plotly.figure_factory as ff
+            
+            fig = ff.create_annotated_heatmap(
+                z=cm,
+                x=['Normal', 'Suspicious', 'Malicious', 'Anomaly'],
+                y=['Normal', 'Suspicious', 'Malicious', 'Anomaly'],
+                colorscale='Blues'
+            )
+            fig.update_layout(title="Confusion Matrix", height=500)
+            st.plotly_chart(fig, use_container_width=True)
+            
+    except Exception as e:
+        st.error(f"Error training model: {str(e)}")
+        st.exception(e)
 
 
 def show_history():

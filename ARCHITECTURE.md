@@ -375,18 +375,19 @@ else:
 3. Lessons Learned
 4. Recommendations
 
-### Network Capture Agent (NEW)
-
-**Purpose**: Capture and organize network traffic for analysis
-
-**Inputs**:
-- SecurityEvent (optional - for event-based capture)
-- AgentState
-- Duration (optional - capture time in seconds, max 60)
-
-**Outputs**:
-- NetworkCapture
-- Updated AgentState with network flows
+### Network Monitoring Agents
+6. **Network Capture Agent**: Captures and organizes network traffic into flows (5-180s, up to 1M packets)
+   - Automatic PCAP file generation
+   - Saves to `captures/` directory
+   - Compatible with Wireshark, tcpdump, etc.
+7. **Network Analysis Agent**: AI-powered analysis of network patterns and anomalies
+8. **ML Traffic Classifier Agent**: Deep Learning-based intrusion detection and traffic classification
+   - 4-layer neural network (128→64→32→16 neurons)
+   - 21 enhanced features extraction
+   - 8-class intrusion detection (DoS, Probe, R2L, U2R, Malware, Botnet, Anomaly, Normal)
+   - Application type classification (Web, Email, DNS, FTP, SSH, Database)
+   - Real-time threat level assessment (Critical, High, Medium, Low, Safe)
+   - TensorFlow/Keras backend for scalability
 
 **Key Capabilities**:
 - Packet capture and parsing

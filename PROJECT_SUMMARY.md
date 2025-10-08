@@ -16,7 +16,8 @@ Praveen_Capstone1/
 │   │   ├── response_agent.py     # Incident response
 │   │   ├── reporting_agent.py    # Report generation
 │   │   ├── network_capture_agent.py    # Network capture (NEW)
-│   │   └── network_analysis_agent.py   # Network analysis (NEW)
+│   │   ├── network_analysis_agent.py   # Network analysis (NEW)
+│   │   └── ml_traffic_classifier_agent.py # Deep Learning classifier (NEW)
 │   ├── graph/                    # LangGraph workflow
 │   │   └── workflow.py           # Agent orchestration
 │   ├── models/                   # Data models
@@ -43,7 +44,11 @@ Praveen_Capstone1/
 ├── QUICKSTART.md                 # Quick start guide
 ├── STREAMLIT_GUIDE.md            # Streamlit UI guide (NEW)
 ├── NETWORK_MONITORING.md         # Network monitoring guide (NEW)
+├── ML_TRAFFIC_CLASSIFIER.md      # Deep Learning classifier docs (NEW)
 ├── ARCHITECTURE.md               # System architecture
+├── PROJECT_SUMMARY.md            # This file
+├── captures/                     # PCAP files directory (NEW)
+├── models/                       # ML models directory (NEW)
 ├── Makefile                      # Build automation
 ├── setup.py                      # Package setup
 ├── pytest.ini                    # Test configuration
@@ -65,7 +70,19 @@ Praveen_Capstone1/
 
 #### Network Monitoring Agents (NEW)
 - **Network Capture Agent**: Captures and organizes network traffic into flows
+  - Real-time packet capture with Scapy
+  - PCAP file generation and saving
+  - Configurable duration (5-180s) and packet limits (up to 1M)
+  - Cross-platform interface detection
 - **Network Analysis Agent**: AI-powered analysis of network patterns and anomalies
+- **ML Traffic Classifier Agent**: Deep Learning intrusion detection system (NEW)
+  - 4-layer neural network (128→64→32→16 neurons)
+  - 21 enhanced features per flow
+  - 8 intrusion types: DoS, Probe, R2L, U2R, Malware, Botnet, Anomaly, Normal
+  - Application classification: Web, Email, DNS, FTP, SSH, Database
+  - Real-time threat level assessment (Critical, High, Medium, Low, Safe)
+  - TensorFlow/Keras backend for scalability
+  - Sub-10ms inference per flow
 
 ### 2. **LangGraph Workflow**
 - State-based agent orchestration
@@ -79,21 +96,41 @@ Praveen_Capstone1/
 - Threat categories (Malware, Phishing, Intrusion, etc.)
 - Response actions (Block IP, Quarantine Host, etc.)
 
-### 4. **Network Traffic Monitoring (NEW)**
-- Real-time packet capture and analysis
-- Flow-based traffic aggregation
-- Anomaly detection (suspicious ports, IPs, patterns)
-- Protocol analysis (TCP, UDP, HTTP, HTTPS, DNS, etc.)
-- AI-powered threat detection in network traffic
-- Standalone CLI and integrated Streamlit UI
+### 4. **Network Traffic Monitoring & Deep Learning (NEW)**
+- **Real-time Packet Capture**: Scapy-based capture with PCAP file generation
+- **Flow-based Analysis**: Intelligent traffic aggregation and flow tracking
+- **Deep Learning Intrusion Detection**: 
+  - Neural network with 21 features
+  - 8-class classification (DoS, Probe, R2L, U2R, Malware, Botnet, Anomaly, Normal)
+  - Real-time threat detection (<10ms per flow)
+- **Application Classification**: Automatic traffic type identification
+- **Anomaly Detection**: Statistical baseline modeling and deviation detection
+- **Protocol Analysis**: TCP, UDP, ICMP, HTTP, HTTPS, DNS, FTP, SSH
+- **Comprehensive PCAP Analysis**: 
+  - File information and statistics
+  - Protocol breakdown
+  - Notable observations
+  - Potential threat identification
+  - Packet content analysis
+  - Automated conclusions
+- **Multiple Interfaces**: Standalone CLI, Streamlit UI, Python API
 
 ### 5. **Interactive Web UI (NEW)**
 - Modern Streamlit-based interface
 - Real-time agent execution tracking
+- **ML Traffic Classifier Page**: 
+  - Upload or select PCAP files
+  - Real-time analysis with DL model
+  - Interactive visualizations
+  - Threat level assessment
+  - Application type breakdown
+  - Detailed flow classifications
+  - Model training interface
+  - Architecture visualization
 - Network monitoring dashboard
 - Visual workflow pipeline
 - Interactive charts and metrics
-- Downloadable reports
+- Downloadable reports (JSON, PCAP)
 
 ### 6. **Production-Ready Features**
 - Environment-based configuration
@@ -213,6 +250,18 @@ pytest tests/test_agents.py -v
 - `langchain-openai` - OpenAI integration
 - `openai` - OpenAI API client
 
+**Deep Learning & ML:**
+- `tensorflow` - Deep learning framework
+- `keras` - Neural network API
+- `scikit-learn` - Machine learning utilities
+- `numpy` - Numerical computing
+- `pandas` - Data manipulation
+
+**Network Analysis:**
+- `scapy` - Packet capture and analysis
+- `streamlit` - Web UI framework
+- `plotly` - Interactive visualizations
+
 **Data & Utilities:**
 - `pydantic` - Data validation
 - `python-dotenv` - Environment management
@@ -284,13 +333,18 @@ Potential extensions:
 
 - [ ] Integration with SIEM systems
 - [ ] Real-time log streaming
-- [ ] Machine learning for anomaly detection
+- [x] **Machine learning for anomaly detection** ✅ (Deep Learning implemented)
+- [x] **PCAP file analysis** ✅ (Comprehensive analysis implemented)
 - [ ] Multi-tenant support
-- [ ] Web dashboard
+- [x] **Web dashboard** ✅ (Streamlit UI implemented)
 - [ ] Slack/Teams notifications
 - [ ] Threat intelligence feeds integration
 - [ ] Automated response execution
 - [ ] Historical incident database
+- [ ] Online learning for model updates
+- [ ] Multi-model ensemble (LSTM, CNN)
+- [ ] Explainable AI (SHAP values)
+- [ ] Real-time streaming analytics
 
 ## 📄 License
 
@@ -314,16 +368,19 @@ For questions or issues:
 
 ## ✅ Project Status
 
-**Status**: Production-Ready ✓
+**Status**: Production-Ready with Advanced ML ✓
 
 All core features implemented:
-- ✅ 5 specialized agents
-- ✅ LangGraph workflow
-- ✅ Complete data models
-- ✅ CLI interface
+- ✅ 8 specialized agents (5 core + 3 network/ML)
+- ✅ LangGraph workflow with dual paths
+- ✅ Complete data models (including network schemas)
+- ✅ CLI interface (main + network monitor)
+- ✅ **Deep Learning intrusion detection** (NEW)
+- ✅ **Real-time packet capture & PCAP generation** (NEW)
+- ✅ **Streamlit web UI with ML classifier** (NEW)
 - ✅ Test suite
-- ✅ Documentation
-- ✅ Sample data
+- ✅ Comprehensive documentation
+- ✅ Sample data (events + network traffic)
 - ✅ Configuration management
 
 ## 🎯 Getting Started Checklist

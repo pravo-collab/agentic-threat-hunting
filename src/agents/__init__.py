@@ -7,6 +7,7 @@ from src.agents.response_agent import ResponseAgent
 from src.agents.reporting_agent import ReportingAgent
 from src.agents.network_capture_agent import NetworkCaptureAgent
 from src.agents.network_analysis_agent import NetworkAnalysisAgent
+from src.agents.ml_traffic_classifier_agent import MLTrafficClassifierAgent
 
 __all__ = [
     "DetectionAgent",
@@ -16,4 +17,5 @@ __all__ = [
     "ReportingAgent",
     "NetworkCaptureAgent",
     "NetworkAnalysisAgent",
+    "MLTrafficClassifierAgent",
 ]
