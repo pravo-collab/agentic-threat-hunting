@@ -807,10 +807,20 @@ def simulate_live_traffic_full_pipeline():
     This runs the complete threat hunting pipeline on captured network traffic.
     """)
     
+    # Get available network interfaces
+    try:
+        from scapy.all import get_if_list
+        available_interfaces = get_if_list()
+        if not available_interfaces:
+            available_interfaces = ["any"]
+    except:
+        available_interfaces = ["en0", "en1", "eth0", "wlan0", "lo0", "lo", "any"]
+    
     col1, col2 = st.columns(2)
     
     with col1:
-        interface = st.selectbox("Network Interface", ["eth0", "wlan0", "lo", "any"])
+        interface = st.selectbox("Network Interface", available_interfaces, 
+                                help="Select the network interface to capture from")
         duration = st.slider("Capture Duration (seconds)", 5, 180, 10)
         save_pcap = st.checkbox("💾 Save PCAP file", value=True, help="Save captured packets to a PCAP file for later analysis")
     

@@ -76,10 +76,14 @@ class NetworkCaptureAgent:
                 pcap_filename = f"capture_{timestamp_str}_{capture_id[:8]}.pcap"
                 pcap_path = self.captures_dir / pcap_filename
             
+            # Determine interface to use
+            default_interface = self._get_default_interface()
+            interface = state.security_event.raw_data.get("interface", default_interface) if state.security_event else default_interface
+            
             capture = NetworkCapture(
                 capture_id=capture_id,
                 start_time=start_time,
-                interface=state.security_event.raw_data.get("interface", "eth0") if state.security_event else "eth0",
+                interface=interface,
                 capture_status="active"
             )
             
@@ -182,6 +186,56 @@ class NetworkCaptureAgent:
             state.current_stage = "error"
         
         return state
+    
+    def _get_default_interface(self) -> str:
+        """Get the default network interface for the current OS.
+        
+        Returns:
+            str: Default network interface name
+        """
+        import platform
+        
+        try:
+            from scapy.all import get_if_list, conf
+            
+            # Get list of available interfaces
+            interfaces = get_if_list()
+            
+            if not interfaces:
+                log.warning("No network interfaces found, using 'any'")
+                return "any"
+            
+            # Platform-specific defaults
+            system = platform.system()
+            
+            if system == "Darwin":  # macOS
+                # Prefer en0 (Wi-Fi) or en1 (Ethernet) on macOS
+                for iface in ["en0", "en1", "lo0"]:
+                    if iface in interfaces:
+                        log.info(f"Using macOS interface: {iface}")
+                        return iface
+            elif system == "Linux":
+                # Prefer eth0, wlan0, or ens33 on Linux
+                for iface in ["eth0", "wlan0", "ens33", "lo"]:
+                    if iface in interfaces:
+                        log.info(f"Using Linux interface: {iface}")
+                        return iface
+            elif system == "Windows":
+                # Use first available interface on Windows
+                if interfaces:
+                    log.info(f"Using Windows interface: {interfaces[0]}")
+                    return interfaces[0]
+            
+            # Fallback to first available interface
+            if interfaces:
+                log.info(f"Using first available interface: {interfaces[0]}")
+                return interfaces[0]
+            
+        except Exception as e:
+            log.warning(f"Error detecting network interface: {str(e)}")
+        
+        # Ultimate fallback
+        return "any"
     
     def _convert_event_to_flows(self, event) -> list:
         """Convert a security event to network flows."""
