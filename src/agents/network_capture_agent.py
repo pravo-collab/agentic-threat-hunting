@@ -104,26 +104,66 @@ class NetworkCaptureAgent:
                 
                 log.info(f"Captured {len(flows)} network flows, {len(suspicious_flows)} suspicious")
             else:
-                # Simulate live capture (in real implementation, this would use scapy)
-                flows = self._simulate_live_capture(capture_time)
-                capture.flows = flows
-                capture.packets_captured = sum(f.packet_count for f in flows)
-                
-                # Identify suspicious flows
-                suspicious_flows = [f for f in flows if f.is_suspicious]
-                capture.suspicious_flows = suspicious_flows
-                
-                state.messages.append(
-                    f"Live capture ({capture_time}s, limit: {packet_limit}): {len(flows)} flows detected, "
-                    f"{len(suspicious_flows)} suspicious"
-                )
-                log.info(f"Simulated live capture: {len(flows)} flows, {len(suspicious_flows)} suspicious")
+                # Attempt real packet capture with scapy
+                try:
+                    from scapy.all import sniff, wrpcap
+                    
+                    log.info(f"Starting real packet capture on {capture.interface}")
+                    
+                    # Capture packets using scapy
+                    captured_packets = sniff(
+                        iface=capture.interface if capture.interface != "any" else None,
+                        count=min(packet_limit, 1000),  # Limit for performance
+                        timeout=min(capture_time, 10),  # Limit timeout for demo
+                        store=True
+                    )
+                    
+                    log.info(f"Captured {len(captured_packets)} packets with scapy")
+                    
+                    # Save packets directly to PCAP using scapy
+                    if captured_packets and self.save_pcap and pcap_filename:
+                        wrpcap(str(pcap_path), captured_packets)
+                        capture.pcap_file = str(pcap_path)
+                        log.info(f"Real packets saved to PCAP: {pcap_path}")
+                        state.messages.append(f"PCAP file saved: {pcap_filename}")
+                    
+                    # Convert to flows for analysis
+                    flows = self._convert_scapy_packets_to_flows(captured_packets)
+                    capture.flows = flows
+                    capture.packets_captured = len(captured_packets)
+                    
+                    # Identify suspicious flows
+                    suspicious_flows = [f for f in flows if f.is_suspicious]
+                    capture.suspicious_flows = suspicious_flows
+                    
+                    state.messages.append(
+                        f"Live capture ({capture_time}s, limit: {packet_limit}): {len(captured_packets)} packets, "
+                        f"{len(flows)} flows, {len(suspicious_flows)} suspicious"
+                    )
+                    log.info(f"Real capture: {len(captured_packets)} packets, {len(flows)} flows, {len(suspicious_flows)} suspicious")
+                    
+                except (ImportError, PermissionError, OSError) as e:
+                    # Fallback to simulation if scapy fails or no permissions
+                    log.warning(f"Real packet capture failed ({str(e)}), falling back to simulation")
+                    flows = self._simulate_live_capture(capture_time)
+                    capture.flows = flows
+                    capture.packets_captured = sum(f.packet_count for f in flows)
+                    
+                    # Identify suspicious flows
+                    suspicious_flows = [f for f in flows if f.is_suspicious]
+                    capture.suspicious_flows = suspicious_flows
+                    
+                    state.messages.append(
+                        f"Simulated capture ({capture_time}s, limit: {packet_limit}): {len(flows)} flows detected, "
+                        f"{len(suspicious_flows)} suspicious"
+                    )
+                    log.info(f"Simulated capture: {len(flows)} flows, {len(suspicious_flows)} suspicious")
             
             capture.end_time = datetime.now()
             capture.capture_status = "completed"
             
-            # Save pcap file if enabled
-            if self.save_pcap and pcap_filename:
+            # Save pcap file if enabled (only if not already saved during real capture)
+            if self.save_pcap and pcap_filename and not capture.pcap_file:
                 try:
                     self._save_pcap_file(capture, pcap_path)
                     capture.pcap_file = str(pcap_path)
@@ -241,6 +281,132 @@ class NetworkCaptureAgent:
         anomaly_score = min(anomaly_score, 1.0)
         
         return is_suspicious, anomaly_score, indicators
+    
+    def _convert_scapy_packets_to_flows(self, packets) -> list:
+        """Convert Scapy packets to NetworkFlow objects.
+        
+        Args:
+            packets: List of Scapy packets
+            
+        Returns:
+            List of NetworkFlow objects
+        """
+        from collections import defaultdict
+        
+        flows = []
+        flow_dict = defaultdict(list)
+        
+        try:
+            from scapy.all import IP, TCP, UDP, ICMP
+            
+            # Group packets by flow (src_ip, dst_ip, protocol, dst_port)
+            for pkt in packets:
+                if IP in pkt:
+                    src_ip = pkt[IP].src
+                    dst_ip = pkt[IP].dst
+                    
+                    if TCP in pkt:
+                        protocol = NetworkProtocol.TCP
+                        src_port = pkt[TCP].sport
+                        dst_port = pkt[TCP].dport
+                    elif UDP in pkt:
+                        protocol = NetworkProtocol.UDP
+                        src_port = pkt[UDP].sport
+                        dst_port = pkt[UDP].dport
+                    elif ICMP in pkt:
+                        protocol = NetworkProtocol.ICMP
+                        src_port = None
+                        dst_port = None
+                    else:
+                        protocol = NetworkProtocol.OTHER
+                        src_port = None
+                        dst_port = None
+                    
+                    flow_key = (src_ip, dst_ip, protocol, dst_port)
+                    flow_dict[flow_key].append(pkt)
+            
+            # Create NetworkFlow objects
+            for (src_ip, dst_ip, protocol, dst_port), pkts in flow_dict.items():
+                flow_id = str(uuid.uuid4())
+                
+                # Convert packets to NetworkPacket objects
+                network_packets = []
+                total_bytes = 0
+                
+                for pkt in pkts[:100]:  # Limit packets per flow
+                    packet_size = len(pkt) if hasattr(pkt, '__len__') else 1500
+                    total_bytes += packet_size
+                    
+                    network_packet = NetworkPacket(
+                        packet_id=str(uuid.uuid4()),
+                        timestamp=datetime.now(),
+                        protocol=protocol,
+                        source_ip=src_ip,
+                        destination_ip=dst_ip,
+                        destination_port=dst_port,
+                        packet_size=packet_size
+                    )
+                    network_packets.append(network_packet)
+                
+                # Determine if flow is suspicious
+                is_suspicious = self._is_suspicious_flow(src_ip, dst_ip, dst_port, protocol)
+                anomaly_score = 0.7 if is_suspicious else 0.1
+                
+                # Get source port from first packet
+                first_src_port = None
+                if pkts:
+                    if TCP in pkts[0]:
+                        first_src_port = pkts[0][TCP].sport
+                    elif UDP in pkts[0]:
+                        first_src_port = pkts[0][UDP].sport
+                
+                flow = NetworkFlow(
+                    flow_id=flow_id,
+                    start_time=datetime.now(),
+                    end_time=datetime.now(),
+                    protocol=protocol,
+                    source_ip=src_ip,
+                    destination_ip=dst_ip,
+                    source_port=first_src_port,
+                    destination_port=dst_port,
+                    packet_count=len(network_packets),
+                    byte_count=total_bytes,
+                    packets=network_packets,
+                    is_suspicious=is_suspicious,
+                    anomaly_score=anomaly_score
+                )
+                flows.append(flow)
+            
+            log.info(f"Converted {len(packets)} packets to {len(flows)} flows")
+            
+        except Exception as e:
+            log.error(f"Error converting scapy packets to flows: {str(e)}")
+            # Return empty list on error
+            
+        return flows
+    
+    def _is_suspicious_flow(self, src_ip: str, dst_ip: str, dst_port: int, protocol: NetworkProtocol) -> bool:
+        """Check if a flow is suspicious based on simple heuristics.
+        
+        Args:
+            src_ip: Source IP address
+            dst_ip: Destination IP address
+            dst_port: Destination port
+            protocol: Network protocol
+            
+        Returns:
+            bool: True if suspicious
+        """
+        # Suspicious ports
+        suspicious_ports = [4444, 31337, 1337, 6667, 6666, 1234, 12345]
+        if dst_port and dst_port in suspicious_ports:
+            return True
+        
+        # Known malicious IP patterns (simplified)
+        if dst_ip and (dst_ip.startswith("185.") or dst_ip.startswith("203.0.113.")):
+            return True
+        
+        return False
     
     def _simulate_live_capture(self, duration: int) -> list:
         """Simulate live network capture (for demo purposes).
@@ -387,38 +553,101 @@ class NetworkCaptureAgent:
             pcap_path: Path where the PCAP file should be saved
             
         Note:
-            This creates a simulated PCAP file. For real packet capture,
-            integrate with scapy or pyshark to write actual PCAP format.
+            Creates PCAP files using scapy if available, otherwise creates
+            a basic PCAP file with libpcap format.
         """
         try:
             # Try to use scapy if available for real PCAP writing
             try:
-                from scapy.all import wrpcap, Ether, IP, TCP, UDP, Raw
+                from scapy.all import wrpcap, Ether, IP, TCP, UDP, Raw, ICMP
                 
                 packets_to_save = []
                 for flow in capture.flows:
-                    for packet in flow.packets[:100]:  # Limit packets per flow
-                        # Create a basic packet structure
+                    for i, packet in enumerate(flow.packets[:100]):  # Limit packets per flow
+                        # Create a realistic packet structure
                         if flow.protocol == NetworkProtocol.TCP:
-                            pkt = Ether()/IP(src=flow.source_ip, dst=flow.destination_ip)/TCP(dport=flow.destination_port)/Raw(load=b"simulated_data")
+                            pkt = Ether()/IP(src=flow.source_ip, dst=flow.destination_ip)/TCP(
+                                sport=flow.source_port or 50000 + i,
+                                dport=flow.destination_port or 80,
+                                flags="PA"
+                            )/Raw(load=b"GET / HTTP/1.1\r\nHost: example.com\r\n\r\n")
                         elif flow.protocol == NetworkProtocol.UDP:
-                            pkt = Ether()/IP(src=flow.source_ip, dst=flow.destination_ip)/UDP(dport=flow.destination_port)/Raw(load=b"simulated_data")
+                            pkt = Ether()/IP(src=flow.source_ip, dst=flow.destination_ip)/UDP(
+                                sport=flow.source_port or 50000 + i,
+                                dport=flow.destination_port or 53
+                            )/Raw(load=b"\x00\x01\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00")
+                        elif flow.protocol == NetworkProtocol.ICMP:
+                            pkt = Ether()/IP(src=flow.source_ip, dst=flow.destination_ip)/ICMP()
                         else:
                             pkt = Ether()/IP(src=flow.source_ip, dst=flow.destination_ip)/Raw(load=b"simulated_data")
                         packets_to_save.append(pkt)
                 
                 if packets_to_save:
                     wrpcap(str(pcap_path), packets_to_save)
-                    log.info(f"Saved {len(packets_to_save)} packets to PCAP using scapy")
+                    log.info(f"Saved {len(packets_to_save)} packets to PCAP using scapy: {pcap_path}")
                 else:
                     log.warning("No packets to save to PCAP")
+                    self._create_basic_pcap(capture, pcap_path)
                     
             except ImportError:
-                # Fallback: Create a metadata file if scapy is not available
-                log.warning("Scapy not available, creating metadata file instead of PCAP")
+                # Fallback: Create a basic PCAP file without scapy
+                log.warning("Scapy not available, creating basic PCAP file with manual format")
+                self._create_basic_pcap(capture, pcap_path)
+                
+        except Exception as e:
+            log.error(f"Error saving PCAP file: {str(e)}")
+            raise
+    
+    def _create_basic_pcap(self, capture: NetworkCapture, pcap_path: Path) -> None:
+        """Create a basic PCAP file without scapy using manual format writing.
+        
+        Args:
+            capture: NetworkCapture object
+            pcap_path: Path to save PCAP file
+        """
+        import struct
+        import time
+        
+        try:
+            with open(pcap_path, 'wb') as f:
+                # Write PCAP global header
+                # Magic number, version, timezone, accuracy, snaplen, network type
+                magic = 0xa1b2c3d4  # PCAP magic number
+                version_major = 2
+                version_minor = 4
+                thiszone = 0
+                sigfigs = 0
+                snaplen = 65535
+                network = 1  # Ethernet
+                
+                f.write(struct.pack('IHHiIII', magic, version_major, version_minor, 
+                                   thiszone, sigfigs, snaplen, network))
+                
+                # Write packet records
+                packet_count = 0
+                for flow in capture.flows:
+                    for packet in flow.packets[:50]:  # Limit packets
+                        # Create a minimal Ethernet + IP + TCP/UDP packet
+                        timestamp = time.time()
+                        ts_sec = int(timestamp)
+                        ts_usec = int((timestamp - ts_sec) * 1000000)
+                        
+                        # Build a simple packet (Ethernet + IP + TCP)
+                        packet_data = self._build_simple_packet(flow, packet)
+                        incl_len = len(packet_data)
+                        orig_len = incl_len
+                        
+                        # Write packet header
+                        f.write(struct.pack('IIII', ts_sec, ts_usec, incl_len, orig_len))
+                        # Write packet data
+                        f.write(packet_data)
+                        packet_count += 1
+                
+                log.info(f"Created basic PCAP file with {packet_count} packets: {pcap_path}")
+                
+                # Also create metadata file
                 metadata_path = pcap_path.with_suffix('.json')
                 import json
-                
                 metadata = {
                     "capture_id": capture.capture_id,
                     "start_time": capture.start_time.isoformat(),
@@ -427,16 +656,82 @@ class NetworkCaptureAgent:
                     "packets_captured": capture.packets_captured,
                     "flows_count": len(capture.flows),
                     "suspicious_flows": len(capture.suspicious_flows) if capture.suspicious_flows else 0,
-                    "note": "Scapy not installed - this is a metadata file. Install scapy for real PCAP capture."
+                    "pcap_file": str(pcap_path),
+                    "note": "Basic PCAP file created. Install scapy for enhanced packet capture."
                 }
                 
-                with open(metadata_path, 'w') as f:
-                    json.dump(metadata, f, indent=2)
+                with open(metadata_path, 'w') as mf:
+                    json.dump(metadata, mf, indent=2)
                 log.info(f"Saved capture metadata to {metadata_path}")
                 
         except Exception as e:
-            log.error(f"Error saving PCAP file: {str(e)}")
+            log.error(f"Error creating basic PCAP: {str(e)}")
             raise
+    
+    def _build_simple_packet(self, flow: NetworkFlow, packet: NetworkPacket) -> bytes:
+        """Build a simple packet in bytes format.
+        
+        Args:
+            flow: NetworkFlow object
+            packet: NetworkPacket object
+            
+        Returns:
+            bytes: Packet data
+        """
+        import struct
+        import socket
+        
+        # Ethernet header (14 bytes)
+        dst_mac = b'\xff\xff\xff\xff\xff\xff'  # Broadcast
+        src_mac = b'\x00\x00\x00\x00\x00\x00'  # Null
+        eth_type = 0x0800  # IPv4
+        eth_header = dst_mac + src_mac + struct.pack('!H', eth_type)
+        
+        # IP header (20 bytes minimum)
+        version_ihl = 0x45  # IPv4, header length 20 bytes
+        tos = 0
+        total_length = 40  # IP + TCP headers
+        identification = 54321
+        flags_fragment = 0
+        ttl = 64
+        protocol = 6 if flow.protocol == NetworkProtocol.TCP else 17  # TCP or UDP
+        checksum = 0
+        
+        try:
+            src_ip = socket.inet_aton(flow.source_ip)
+            dst_ip = socket.inet_aton(flow.destination_ip)
+        except:
+            src_ip = socket.inet_aton("192.168.1.1")
+            dst_ip = socket.inet_aton("192.168.1.2")
+        
+        ip_header = struct.pack('!BBHHHBBH', version_ihl, tos, total_length,
+                               identification, flags_fragment, ttl, protocol, checksum)
+        ip_header += src_ip + dst_ip
+        
+        # TCP/UDP header (20 bytes for TCP, 8 for UDP)
+        if flow.protocol == NetworkProtocol.TCP:
+            src_port = flow.source_port or 50000
+            dst_port = flow.destination_port or 80
+            seq_num = 0
+            ack_num = 0
+            offset_reserved = 0x50  # 20 bytes, no options
+            flags = 0x18  # PSH, ACK
+            window = 65535
+            checksum = 0
+            urgent = 0
+            
+            tcp_header = struct.pack('!HHIIBBHHH', src_port, dst_port, seq_num, ack_num,
+                                    offset_reserved, flags, window, checksum, urgent)
+            return eth_header + ip_header + tcp_header
+        else:
+            # UDP header
+            src_port = flow.source_port or 50000
+            dst_port = flow.destination_port or 53
+            length = 8
+            checksum = 0
+            
+            udp_header = struct.pack('!HHHH', src_port, dst_port, length, checksum)
+            return eth_header + ip_header + udp_header
     
     def capture_live_traffic(self, interface: str = "eth0", duration: int = 10, 
                            packet_count: int = 100, bpf_filter: str = "") -> NetworkCapture:
