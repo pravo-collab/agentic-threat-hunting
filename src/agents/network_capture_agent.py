@@ -148,9 +148,15 @@ class NetworkCaptureAgent:
                     )
                     log.info(f"Real capture: {len(captured_packets)} packets, {len(flows)} flows, {len(suspicious_flows)} suspicious")
                     
-                except (ImportError, PermissionError, OSError) as e:
+                except (ImportError, PermissionError, OSError, Exception) as e:
                     # Fallback to simulation if scapy fails or no permissions
-                    log.warning(f"Real packet capture failed ({str(e)}), falling back to simulation")
+                    error_msg = str(e)
+                    if "Permission denied" in error_msg or "bpf" in error_msg:
+                        log.warning(f"Packet capture requires elevated privileges. Falling back to simulation mode.")
+                        log.info("To enable real packet capture, run: sudo streamlit run app.py")
+                    else:
+                        log.warning(f"Real packet capture failed ({error_msg}), falling back to simulation")
+                    
                     flows = self._simulate_live_capture(capture_time)
                     capture.flows = flows
                     capture.packets_captured = sum(f.packet_count for f in flows)
@@ -161,7 +167,7 @@ class NetworkCaptureAgent:
                     
                     state.messages.append(
                         f"Simulated capture ({capture_time}s, limit: {packet_limit}): {len(flows)} flows detected, "
-                        f"{len(suspicious_flows)} suspicious"
+                        f"{len(suspicious_flows)} suspicious (Note: Run with sudo for real packet capture)"
                     )
                     log.info(f"Simulated capture: {len(flows)} flows, {len(suspicious_flows)} suspicious")
             
@@ -184,8 +190,12 @@ class NetworkCaptureAgent:
             
         except Exception as e:
             log.error(f"Error in network capture: {str(e)}")
-            state.error = f"Network capture error: {str(e)}"
-            state.current_stage = "error"
+            # Don't set error state for permission issues - we have fallback
+            if "Permission denied" not in str(e) and "bpf" not in str(e):
+                state.error = f"Network capture error: {str(e)}"
+                state.current_stage = "error"
+            else:
+                log.warning("Continuing with simulation mode due to permission restrictions")
         
         return state
     
