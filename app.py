@@ -173,8 +173,8 @@ def main():
         
         selected = option_menu(
             menu_title="Navigation",
-            options=["Dashboard", "Analyze Event", "History", "Settings"],
-            icons=["speedometer2", "search", "clock-history", "gear"],
+            options=["Dashboard", "Analyze Event", "Network Monitor", "History", "Settings"],
+            icons=["speedometer2", "search", "wifi", "clock-history", "gear"],
             menu_icon="cast",
             default_index=0,
         )
@@ -196,6 +196,8 @@ def main():
         show_dashboard()
     elif selected == "Analyze Event":
         show_analyze_event()
+    elif selected == "Network Monitor":
+        show_network_monitor()
     elif selected == "History":
         show_history()
     elif selected == "Settings":
@@ -256,6 +258,7 @@ def show_analyze_event():
     )
     
     security_event = None
+    should_analyze = False
     
     if input_method == "Sample Events":
         samples = load_sample_events()
@@ -271,7 +274,18 @@ def show_analyze_event():
                 st.json(samples[selected_sample])
                 
                 if st.button("🔍 Analyze This Event", type="primary", use_container_width=True):
-                    security_event = SecurityEvent(**samples[selected_sample])
+                    try:
+                        # Parse timestamp if it's a string
+                        event_data = samples[selected_sample].copy()
+                        if isinstance(event_data.get('timestamp'), str):
+                            from dateutil import parser
+                            event_data['timestamp'] = parser.parse(event_data['timestamp'])
+                        security_event = SecurityEvent(**event_data)
+                        should_analyze = True
+                    except Exception as e:
+                        st.error(f"Error parsing event: {str(e)}")
+                        security_event = None
+                        should_analyze = False
         else:
             st.warning("No sample events found in the data directory.")
     
@@ -279,11 +293,31 @@ def show_analyze_event():
         uploaded_file = st.file_uploader("Upload security event JSON file", type=['json'])
         
         if uploaded_file:
-            event_data = json.load(uploaded_file)
-            st.json(event_data)
-            
-            if st.button("🔍 Analyze This Event", type="primary", use_container_width=True):
-                security_event = SecurityEvent(**event_data)
+            try:
+                event_data = json.load(uploaded_file)
+                st.json(event_data)
+                
+                # Validate that this is actually a security event, not a report
+                if 'report_id' in event_data:
+                    st.error("❌ This appears to be a report file, not a security event. Please upload a security event JSON file.")
+                elif 'event_id' not in event_data:
+                    st.error("❌ Invalid event file: missing 'event_id' field. Please upload a valid security event JSON file.")
+                else:
+                    if st.button("🔍 Analyze This Event", type="primary", use_container_width=True):
+                        try:
+                            # Parse timestamp if it's a string
+                            event_data_copy = event_data.copy()
+                            if isinstance(event_data_copy.get('timestamp'), str):
+                                from dateutil import parser
+                                event_data_copy['timestamp'] = parser.parse(event_data_copy['timestamp'])
+                            security_event = SecurityEvent(**event_data_copy)
+                            should_analyze = True
+                        except Exception as e:
+                            st.error(f"Error parsing event: {str(e)}")
+                            security_event = None
+                            should_analyze = False
+            except json.JSONDecodeError as e:
+                st.error(f"Invalid JSON file: {str(e)}")
     
     elif input_method == "Manual Entry":
         with st.form("manual_event_form"):
@@ -322,8 +356,8 @@ def show_analyze_event():
                 except Exception as e:
                     st.error(f"Error creating event: {str(e)}")
     
-    # Run analysis
-    if security_event:
+    # Run analysis only if button was clicked
+    if security_event and should_analyze:
         run_analysis(security_event)
 
 
@@ -688,6 +722,526 @@ def display_results(final_state):
     st.markdown("---")
     fig = create_workflow_timeline(final_state)
     st.plotly_chart(fig, use_container_width=True)
+
+
+def show_network_monitor():
+    """Show network monitoring page."""
+    st.header("🌐 Network Traffic Monitor")
+    
+    st.markdown("""
+    Monitor and analyze network traffic in real-time to detect suspicious patterns, 
+    anomalies, and potential security threats.
+    
+    **Two Workflow Options:**
+    1. **File Upload**: Upload a security event file for traditional threat detection
+    2. **Network Capture**: Capture live traffic and run full analysis pipeline
+    """)
+    
+    # Network monitoring mode selection
+    mode = st.radio(
+        "Select Monitoring Mode:",
+        ["Analyze Network Event", "Live Traffic Simulation (Full Pipeline)", "Network Flow Analysis"],
+        horizontal=True
+    )
+    
+    if mode == "Analyze Network Event":
+        analyze_network_event()
+    elif mode == "Live Traffic Simulation (Full Pipeline)":
+        simulate_live_traffic_full_pipeline()
+    elif mode == "Network Flow Analysis":
+        analyze_network_flows()
+
+
+def analyze_network_event():
+    """Analyze a network security event."""
+    st.subheader("📁 Network Event Analysis")
+    
+    # Load network events
+    samples = load_sample_events()
+    network_events = {k: v for k, v in samples.items() if 'network' in k.lower()}
+    
+    if not network_events:
+        st.warning("No network events found. Using all available events.")
+        network_events = samples
+    
+    if network_events:
+        selected_event = st.selectbox(
+            "Select a network event:",
+            options=list(network_events.keys()),
+            format_func=lambda x: x.replace("_", " ").title()
+        )
+        
+        if selected_event:
+            event_data = network_events[selected_event]
+            
+            # Display event details
+            with st.expander("📋 Event Details", expanded=True):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.write(f"**Event ID:** {event_data.get('event_id')}")
+                    st.write(f"**Source:** {event_data.get('source')}")
+                    st.write(f"**Type:** {event_data.get('event_type')}")
+                
+                with col2:
+                    st.write(f"**Source IP:** {event_data.get('source_ip')}")
+                    st.write(f"**Destination IP:** {event_data.get('destination_ip')}")
+                    st.write(f"**Timestamp:** {event_data.get('timestamp')}")
+                
+                st.json(event_data.get('raw_data', {}))
+            
+            if st.button("🔍 Analyze Network Traffic", type="primary", use_container_width=True):
+                run_network_analysis(event_data)
+    else:
+        st.info("No network events available. Upload a network event JSON file.")
+
+
+def simulate_live_traffic_full_pipeline():
+    """Simulate live network traffic capture with full analysis pipeline."""
+    st.subheader("📡 Live Traffic Simulation - Full Analysis Pipeline")
+    
+    st.info("""
+    **Full Workflow**: Network Capture → Network Analysis → Threat Detection → 
+    Deep Analysis → Investigation → Response → Reporting
+    
+    This runs the complete threat hunting pipeline on captured network traffic.
+    """)
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        interface = st.selectbox("Network Interface", ["eth0", "wlan0", "lo", "any"])
+        duration = st.slider("Capture Duration (seconds)", 5, 180, 10)
+        save_pcap = st.checkbox("💾 Save PCAP file", value=True, help="Save captured packets to a PCAP file for later analysis")
+    
+    with col2:
+        filter_expr = st.text_input("BPF Filter (optional)", placeholder="tcp port 80")
+        packet_limit = st.number_input("Packet Limit", min_value=10, max_value=1000000, value=100000)
+    
+    if st.button("🚀 Start Full Pipeline Analysis", type="primary", use_container_width=True):
+        run_full_pipeline_capture(interface, duration, filter_expr, packet_limit, save_pcap)
+
+
+def analyze_network_flows():
+    """Analyze network flows."""
+    st.subheader("🔀 Network Flow Analysis")
+    
+    st.markdown("""
+    Analyze network flows to identify:
+    - Suspicious connection patterns
+    - Anomalous traffic volumes
+    - Known malicious IPs
+    - Protocol anomalies
+    """)
+    
+    # Sample flow data input
+    with st.form("flow_analysis_form"):
+        st.write("**Enter Flow Details:**")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            src_ip = st.text_input("Source IP", value="192.168.1.100")
+            dst_ip = st.text_input("Destination IP", value="185.220.101.50")
+            protocol = st.selectbox("Protocol", ["TCP", "UDP", "ICMP", "HTTP", "HTTPS"])
+        
+        with col2:
+            src_port = st.number_input("Source Port", min_value=0, max_value=65535, value=49152)
+            dst_port = st.number_input("Destination Port", min_value=0, max_value=65535, value=4444)
+            packet_count = st.number_input("Packet Count", min_value=1, max_value=100000, value=150)
+        
+        submitted = st.form_submit_button("🔍 Analyze Flow", type="primary", use_container_width=True)
+        
+        if submitted:
+            run_flow_analysis(src_ip, dst_ip, protocol, src_port, dst_port, packet_count)
+
+
+def run_network_analysis(event_data):
+    """Run network analysis on an event."""
+    from src.agents.network_capture_agent import NetworkCaptureAgent
+    from src.agents.network_analysis_agent import NetworkAnalysisAgent
+    
+    st.markdown("---")
+    st.subheader("🔄 Network Analysis in Progress")
+    
+    # Progress tracking
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    
+    try:
+        # Create security event
+        status_text.text("Creating security event...")
+        progress_bar.progress(10)
+        
+        security_event = SecurityEvent(**event_data)
+        
+        # Initialize agents
+        status_text.text("Initializing network agents...")
+        progress_bar.progress(20)
+        
+        capture_agent = NetworkCaptureAgent()
+        analysis_agent = NetworkAnalysisAgent()
+        
+        # Create initial state
+        initial_state = AgentState(
+            security_event=security_event,
+            current_stage="network_capture"
+        )
+        
+        # Capture network traffic
+        status_text.text("📡 Capturing network traffic...")
+        progress_bar.progress(40)
+        
+        state = capture_agent.capture(initial_state)
+        
+        if state.network_capture:
+            display_network_capture_results(state.network_capture)
+            
+            # Analyze traffic
+            status_text.text("🧠 Analyzing network traffic...")
+            progress_bar.progress(70)
+            
+            state = analysis_agent.analyze(state)
+            
+            progress_bar.progress(100)
+            status_text.text("✅ Analysis complete!")
+            
+            display_network_analysis_results(state)
+        else:
+            st.error("Failed to capture network traffic")
+            
+    except Exception as e:
+        st.error(f"Error during network analysis: {str(e)}")
+        st.exception(e)
+
+
+def run_full_pipeline_capture(interface, duration, filter_expr, packet_limit, save_pcap=True):
+    """Run full pipeline: capture → analysis → detection → investigation → response → report."""
+    from src.graph.workflow import ThreatHuntingWorkflow
+    from src.agents.network_capture_agent import NetworkCaptureAgent
+    
+    st.markdown("---")
+    st.subheader("🔄 Full Pipeline Analysis in Progress")
+    
+    # Agent execution tracking
+    st.markdown("### 🎯 Agent Execution Pipeline")
+    
+    agent_cols = st.columns(7)
+    agent_status = {}
+    
+    agents = [
+        ("🌐 Network Capture", "network_capture"),
+        ("🔬 Network Analysis", "network_analysis"),
+        ("🎯 Detection", "detection"),
+        ("📊 Deep Analysis", "analysis"),
+        ("🔎 Investigation", "investigation"),
+        ("🚨 Response", "response"),
+        ("📋 Reporting", "reporting")
+    ]
+    
+    for idx, (name, key) in enumerate(agents):
+        with agent_cols[idx]:
+            agent_status[key] = st.empty()
+            agent_status[key].markdown(f"**{name}**\n\n⏳ Pending")
+    
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    log_expander = st.expander("📝 Execution Log", expanded=True)
+    
+    try:
+        with log_expander:
+            st.write(f"🚀 Initializing workflow for {duration}s capture on {interface}...")
+            st.write(f"📦 Packet limit: {packet_limit:,}")
+        
+        # Initialize workflow
+        workflow = ThreatHuntingWorkflow()
+        
+        # Create initial state for network capture
+        initial_state = AgentState(current_stage="network_capture")
+        
+        # Update status
+        agent_status["network_capture"].markdown(f"**🌐 Network Capture**\n\n⚙️ Running")
+        status_text.text("📡 Capturing network traffic...")
+        progress_bar.progress(10)
+        
+        with log_expander:
+            st.write(f"🔍 Starting network capture for {duration} seconds...")
+        
+        # Run the full workflow
+        import time
+        time.sleep(0.5)  # Brief pause for UI
+        
+        final_state = workflow.run(initial_state)
+        
+        # Update all agents to completed
+        progress_bar.progress(100)
+        
+        # Display results based on what was generated
+        st.markdown("---")
+        st.markdown("## 📊 Pipeline Results")
+        
+        # Network Capture Results
+        if final_state.network_capture:
+            agent_status["network_capture"].markdown(f"**🌐 Network Capture**\n\n✅ Done")
+            with log_expander:
+                st.write("✅ Network capture completed")
+            display_network_capture_results(final_state.network_capture)
+        
+        # Network Analysis Results  
+        if final_state.detection:
+            agent_status["network_analysis"].markdown(f"**🔬 Network Analysis**\n\n✅ Done")
+            agent_status["detection"].markdown(f"**🎯 Detection**\n\n✅ Done")
+            with log_expander:
+                st.write("✅ Threat detected in network traffic")
+        
+        # Analysis Results
+        if final_state.analysis:
+            agent_status["analysis"].markdown(f"**📊 Deep Analysis**\n\n✅ Done")
+            with log_expander:
+                st.write(f"✅ Analysis completed: {final_state.analysis.severity.value} severity")
+            
+            st.markdown("### 🔬 Threat Analysis")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Severity", final_state.analysis.severity.value.upper())
+            with col2:
+                st.metric("Category", final_state.analysis.category.value.replace("_", " ").title())
+            with col3:
+                st.metric("Affected Assets", len(final_state.analysis.affected_assets))
+        
+        # Investigation Results
+        if final_state.investigation:
+            agent_status["investigation"].markdown(f"**🔎 Investigation**\n\n✅ Done")
+            with log_expander:
+                st.write("✅ Investigation completed")
+            
+            st.markdown("### 🔍 Investigation Findings")
+            if final_state.investigation.root_cause:
+                st.write(f"**Root Cause:** {final_state.investigation.root_cause}")
+            if final_state.investigation.attack_chain:
+                st.write("**Attack Chain:**")
+                for step in final_state.investigation.attack_chain:
+                    st.write(f"  • {step}")
+        
+        # Response Results
+        if final_state.response:
+            agent_status["response"].markdown(f"**🚨 Response**\n\n✅ Done")
+            with log_expander:
+                st.write("✅ Response actions planned")
+            
+            st.markdown("### 🚨 Incident Response")
+            st.write(f"**Containment Status:** {final_state.response.containment_status}")
+            if final_state.response.actions_taken:
+                st.write("**Actions Taken:**")
+                for action in final_state.response.actions_taken:
+                    st.write(f"  • {action.value.replace('_', ' ').title()}")
+        
+        # Report Results
+        if final_state.report:
+            agent_status["reporting"].markdown(f"**📋 Reporting**\n\n✅ Done")
+            with log_expander:
+                st.write("✅ Final report generated")
+            
+            st.markdown("### 📋 Incident Report")
+            
+            with st.expander("📄 Executive Summary", expanded=True):
+                st.write(final_state.report.executive_summary)
+            
+            with st.expander("🔧 Technical Details"):
+                st.write(final_state.report.technical_details)
+            
+            with st.expander("💡 Recommendations"):
+                for rec in final_state.report.recommendations:
+                    st.write(f"• {rec}")
+            
+            # Download button
+            report_json = final_state.report.model_dump(mode='json')
+            st.download_button(
+                label="📥 Download Full Report (JSON)",
+                data=json.dumps(report_json, indent=2, default=str),
+                file_name=f"network_threat_report_{final_state.report.report_id[:8]}.json",
+                mime="application/json",
+                use_container_width=True
+            )
+        
+        status_text.text("✅ Full pipeline analysis complete!")
+        
+        with log_expander:
+            st.write("🎉 Workflow completed successfully!")
+            
+    except Exception as e:
+        st.error(f"Error during pipeline execution: {str(e)}")
+        st.exception(e)
+        with log_expander:
+            st.write(f"❌ Error: {str(e)}")
+
+
+def run_flow_analysis(src_ip, dst_ip, protocol, src_port, dst_port, packet_count):
+    """Analyze a single network flow."""
+    from src.agents.network_capture_agent import NetworkCaptureAgent
+    from src.agents.network_analysis_agent import NetworkAnalysisAgent
+    
+    st.markdown("---")
+    st.subheader("🔍 Flow Analysis Results")
+    
+    try:
+        # Create a synthetic event from flow data
+        event_data = {
+            "event_id": f"flow_{uuid.uuid4().hex[:8]}",
+            "timestamp": datetime.now().isoformat(),
+            "source": "network_monitor",
+            "event_type": "network_flow",
+            "raw_data": {
+                "protocol": protocol.lower(),
+                "source_port": src_port,
+                "destination_port": dst_port,
+                "packet_count": packet_count
+            },
+            "source_ip": src_ip,
+            "destination_ip": dst_ip,
+            "process": "network_monitor"
+        }
+        
+        security_event = SecurityEvent(**event_data)
+        
+        # Analyze
+        capture_agent = NetworkCaptureAgent()
+        analysis_agent = NetworkAnalysisAgent()
+        
+        initial_state = AgentState(
+            security_event=security_event,
+            current_stage="network_capture"
+        )
+        
+        state = capture_agent.capture(initial_state)
+        
+        if state.network_capture:
+            display_network_capture_results(state.network_capture)
+            state = analysis_agent.analyze(state)
+            display_network_analysis_results(state)
+        
+    except Exception as e:
+        st.error(f"Error analyzing flow: {str(e)}")
+
+
+def display_network_capture_results(capture):
+    """Display network capture results."""
+    st.markdown("---")
+    st.markdown("### 📊 Capture Results")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Total Packets", capture.packets_captured)
+    
+    with col2:
+        st.metric("Total Flows", len(capture.flows))
+    
+    with col3:
+        st.metric("Suspicious Flows", len(capture.suspicious_flows), 
+                 delta=f"{len(capture.suspicious_flows)/max(len(capture.flows), 1)*100:.1f}%")
+    
+    with col4:
+        st.metric("Capture Status", capture.capture_status.upper())
+    
+    # PCAP file download
+    if capture.pcap_file:
+        st.markdown("---")
+        col_pcap1, col_pcap2 = st.columns([3, 1])
+        with col_pcap1:
+            st.info(f"📦 **PCAP File Saved:** `{capture.pcap_file}`")
+        with col_pcap2:
+            # Check if file exists and offer download
+            import os
+            if os.path.exists(capture.pcap_file):
+                with open(capture.pcap_file, 'rb') as f:
+                    st.download_button(
+                        label="📥 Download PCAP",
+                        data=f.read(),
+                        file_name=os.path.basename(capture.pcap_file),
+                        mime="application/vnd.tcpdump.pcap",
+                        use_container_width=True
+                    )
+            else:
+                st.warning("PCAP file not found")
+    
+    # Flow details table
+    if capture.flows:
+        st.markdown("#### Network Flows")
+        
+        import pandas as pd
+        
+        flow_data = []
+        for flow in capture.flows[:20]:  # Show top 20
+            flow_data.append({
+                "Flow ID": flow.flow_id[:8] + "...",
+                "Source": f"{flow.source_ip}:{flow.source_port or 'N/A'}",
+                "Destination": f"{flow.destination_ip}:{flow.destination_port or 'N/A'}",
+                "Protocol": flow.protocol.value.upper(),
+                "Packets": flow.packet_count,
+                "Bytes": flow.byte_count,
+                "Anomaly Score": f"{flow.anomaly_score:.2f}",
+                "Suspicious": "🚨" if flow.is_suspicious else "✅"
+            })
+        
+        df = pd.DataFrame(flow_data)
+        st.dataframe(df, use_container_width=True)
+    
+    # Suspicious flows details
+    if capture.suspicious_flows:
+        with st.expander("⚠️ Suspicious Flow Details", expanded=True):
+            for i, flow in enumerate(capture.suspicious_flows[:5], 1):
+                st.markdown(f"**Flow {i}:** `{flow.flow_id}`")
+                st.write(f"- **Route:** {flow.source_ip}:{flow.source_port or 'N/A'} → {flow.destination_ip}:{flow.destination_port or 'N/A'}")
+                st.write(f"- **Protocol:** {flow.protocol.value.upper()}")
+                st.write(f"- **Anomaly Score:** {flow.anomaly_score:.2f}")
+                
+                if flow.threat_indicators:
+                    st.write("- **Threat Indicators:**")
+                    for indicator in flow.threat_indicators:
+                        st.markdown(f"  - {indicator}")
+                
+                st.markdown("---")
+
+
+def display_network_analysis_results(state):
+    """Display network analysis results."""
+    st.markdown("---")
+    st.markdown("### 🔬 Analysis Results")
+    
+    if state.detection:
+        st.error("⚠️ **NETWORK THREAT DETECTED**")
+        
+        detection = state.detection
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("Confidence", f"{detection.confidence_score:.2%}")
+        
+        with col2:
+            st.metric("Detection Method", detection.detection_method)
+        
+        with col3:
+            st.metric("Threat Indicators", len(detection.threat_indicators))
+        
+        if detection.threat_indicators:
+            st.markdown("#### 🔍 Threat Indicators")
+            for indicator in detection.threat_indicators:
+                st.warning(f"• {indicator}")
+        
+        # Show created security event
+        with st.expander("📋 Generated Security Event"):
+            st.json(detection.event.model_dump(mode='json'))
+    
+    else:
+        st.success("✅ **No threats detected in network traffic**")
+    
+    # Show messages
+    if state.messages:
+        with st.expander("📝 Analysis Log"):
+            for msg in state.messages:
+                st.info(msg)
 
 
 def show_history():

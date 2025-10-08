@@ -14,11 +14,13 @@ Praveen_Capstone1/
 │   │   ├── analysis_agent.py     # Threat analysis
 │   │   ├── investigation_agent.py # Forensic investigation
 │   │   ├── response_agent.py     # Incident response
-│   │   └── reporting_agent.py    # Report generation
+│   │   ├── reporting_agent.py    # Report generation
+│   │   ├── network_capture_agent.py    # Network capture (NEW)
+│   │   └── network_analysis_agent.py   # Network analysis (NEW)
 │   ├── graph/                    # LangGraph workflow
 │   │   └── workflow.py           # Agent orchestration
 │   ├── models/                   # Data models
-│   │   └── schemas.py            # Pydantic schemas
+│   │   └── schemas.py            # Pydantic schemas + Network models
 │   ├── config/                   # Configuration
 │   │   └── settings.py           # Settings management
 │   ├── utils/                    # Utilities
@@ -30,12 +32,18 @@ Praveen_Capstone1/
 ├── data/                         # Sample data
 │   ├── sample_logs.json          # Malware detection event
 │   ├── phishing_event.json       # Phishing attempt
-│   └── intrusion_event.json      # Unauthorized access
+│   ├── intrusion_event.json      # Unauthorized access
+│   └── network_traffic_event.json # Network threat (NEW)
 ├── notebooks/                    # Jupyter notebooks
 │   └── demo.ipynb                # Interactive demo
+├── app.py                        # Streamlit web UI (NEW)
+├── network_monitor.py            # Network monitor CLI (NEW)
 ├── requirements.txt              # Python dependencies
 ├── README.md                     # Main documentation
 ├── QUICKSTART.md                 # Quick start guide
+├── STREAMLIT_GUIDE.md            # Streamlit UI guide (NEW)
+├── NETWORK_MONITORING.md         # Network monitoring guide (NEW)
+├── ARCHITECTURE.md               # System architecture
 ├── Makefile                      # Build automation
 ├── setup.py                      # Package setup
 ├── pytest.ini                    # Test configuration
@@ -47,11 +55,17 @@ Praveen_Capstone1/
 ## 🎯 Key Features
 
 ### 1. **Multi-Agent Architecture**
+
+#### Core Agents
 - **Detection Agent**: Monitors security events and identifies potential threats
 - **Analysis Agent**: Determines threat severity, category, and impact
 - **Investigation Agent**: Performs deep forensic analysis
 - **Response Agent**: Plans and executes containment actions
 - **Reporting Agent**: Generates comprehensive incident reports
+
+#### Network Monitoring Agents (NEW)
+- **Network Capture Agent**: Captures and organizes network traffic into flows
+- **Network Analysis Agent**: AI-powered analysis of network patterns and anomalies
 
 ### 2. **LangGraph Workflow**
 - State-based agent orchestration
@@ -65,7 +79,23 @@ Praveen_Capstone1/
 - Threat categories (Malware, Phishing, Intrusion, etc.)
 - Response actions (Block IP, Quarantine Host, etc.)
 
-### 4. **Production-Ready Features**
+### 4. **Network Traffic Monitoring (NEW)**
+- Real-time packet capture and analysis
+- Flow-based traffic aggregation
+- Anomaly detection (suspicious ports, IPs, patterns)
+- Protocol analysis (TCP, UDP, HTTP, HTTPS, DNS, etc.)
+- AI-powered threat detection in network traffic
+- Standalone CLI and integrated Streamlit UI
+
+### 5. **Interactive Web UI (NEW)**
+- Modern Streamlit-based interface
+- Real-time agent execution tracking
+- Network monitoring dashboard
+- Visual workflow pipeline
+- Interactive charts and metrics
+- Downloadable reports
+
+### 6. **Production-Ready Features**
 - Environment-based configuration
 - Structured logging with Loguru
 - Rich CLI output with colors and tables
@@ -91,12 +121,31 @@ cp .env.example .env
 
 ### Running the System
 
+#### Option 1: Streamlit Web UI (Recommended)
+```bash
+streamlit run app.py
+# Navigate to Network Monitor for traffic analysis
+```
+
+#### Option 2: Network Monitor CLI
+```bash
+# Analyze network event
+python network_monitor.py --input data/network_traffic_event.json
+
+# Simulate live capture
+python network_monitor.py --live
+```
+
+#### Option 3: Command Line
 ```bash
 # Run with sample malware event
 python src/main.py --input data/sample_logs.json
 
 # Run with phishing event
 python src/main.py --input data/phishing_event.json
+
+# Run with network traffic event
+python src/main.py --input data/network_traffic_event.json
 
 # Run with intrusion event
 python src/main.py --input data/intrusion_event.json

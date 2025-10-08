@@ -1,0 +1,10 @@
+{
+  "capture_id": "37f62075-0ec3-4047-901d-e75f5dc1aee9",
+  "start_time": "2025-10-07T17:04:35.868351",
+  "end_time": "2025-10-07T17:04:35.869985",
+  "interface": "eth0",
+  "packets_captured": 152,
+  "flows_count": 3,
+  "suspicious_flows": 1,
+  "note": "Scapy not installed - this is a metadata file. Install scapy for real PCAP capture."
+}

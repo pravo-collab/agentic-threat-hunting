@@ -39,6 +39,67 @@ class ResponseAction(str, Enum):
     NO_ACTION = "no_action"
 
 
+class NetworkProtocol(str, Enum):
+    """Network protocols."""
+    TCP = "tcp"
+    UDP = "udp"
+    ICMP = "icmp"
+    HTTP = "http"
+    HTTPS = "https"
+    DNS = "dns"
+    FTP = "ftp"
+    SSH = "ssh"
+    SMTP = "smtp"
+    OTHER = "other"
+
+
+class NetworkPacket(BaseModel):
+    """Network packet information."""
+    packet_id: str = Field(description="Unique packet identifier")
+    timestamp: datetime = Field(description="Packet capture time")
+    protocol: NetworkProtocol = Field(description="Network protocol")
+    source_ip: str = Field(description="Source IP address")
+    destination_ip: str = Field(description="Destination IP address")
+    source_port: Optional[int] = None
+    destination_port: Optional[int] = None
+    packet_size: int = Field(description="Packet size in bytes")
+    payload: Optional[str] = None
+    flags: Dict[str, Any] = Field(default_factory=dict)
+    raw_data: Dict[str, Any] = Field(default_factory=dict)
+
+
+class NetworkFlow(BaseModel):
+    """Network flow/session information."""
+    flow_id: str = Field(description="Unique flow identifier")
+    start_time: datetime = Field(description="Flow start time")
+    end_time: Optional[datetime] = None
+    protocol: NetworkProtocol = Field(description="Protocol used")
+    source_ip: str = Field(description="Source IP")
+    destination_ip: str = Field(description="Destination IP")
+    source_port: Optional[int] = None
+    destination_port: Optional[int] = None
+    packet_count: int = Field(default=0)
+    byte_count: int = Field(default=0)
+    packets: List[NetworkPacket] = Field(default_factory=list)
+    is_suspicious: bool = Field(default=False)
+    anomaly_score: float = Field(default=0.0, ge=0.0, le=1.0)
+    threat_indicators: List[str] = Field(default_factory=list)
+
+
+class NetworkCapture(BaseModel):
+    """Network capture session."""
+    capture_id: str = Field(description="Unique capture identifier")
+    start_time: datetime = Field(description="Capture start time")
+    end_time: Optional[datetime] = None
+    interface: str = Field(description="Network interface")
+    filter_expression: Optional[str] = None
+    packets_captured: int = Field(default=0)
+    flows: List[NetworkFlow] = Field(default_factory=list)
+    suspicious_flows: List[NetworkFlow] = Field(default_factory=list)
+    capture_status: str = Field(default="active")
+    pcap_file: Optional[str] = Field(default=None, description="Path to saved PCAP file")
+
+
 class SecurityEvent(BaseModel):
     """Raw security event from logs or monitoring systems."""
     event_id: str = Field(description="Unique event identifier")
@@ -113,6 +174,7 @@ class IncidentReport(BaseModel):
 class AgentState(BaseModel):
     """State passed between agents in the LangGraph workflow."""
     security_event: Optional[SecurityEvent] = None
+    network_capture: Optional[NetworkCapture] = None
     detection: Optional[ThreatDetection] = None
     analysis: Optional[ThreatAnalysis] = None
     investigation: Optional[Investigation] = None

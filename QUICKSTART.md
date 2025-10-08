@@ -45,12 +45,35 @@ LANGCHAIN_API_KEY=your_langchain_api_key_here
 
 ### 4. Run Your First Threat Hunt
 
+#### Option A: Streamlit Web UI (Recommended)
+
+```bash
+streamlit run app.py
+```
+
+Then navigate to `http://localhost:8501` and:
+- Try the **Network Monitor** for live traffic simulation
+- Use the slider to set capture duration (5-60 seconds)
+- Analyze sample events with real-time agent tracking
+
+#### Option B: Command Line
+
 ```bash
 # Run with sample malware detection event
 python src/main.py --input data/sample_logs.json
 
 # Or run with default sample event
 python src/main.py
+```
+
+#### Option C: Network Monitor CLI
+
+```bash
+# Simulate live traffic capture (10 seconds)
+python network_monitor.py --live
+
+# Capture for 30 seconds
+python network_monitor.py --live --duration 30
 ```
 
 ## Example Scenarios
@@ -65,6 +88,17 @@ python src/main.py --input data/phishing_event.json
 
 ```bash
 python src/main.py --input data/intrusion_event.json
+```
+
+### Analyze Network Traffic
+
+```bash
+# Via CLI
+python src/main.py --input data/network_traffic_event.json
+
+# Via Network Monitor with custom duration
+python network_monitor.py --input data/network_traffic_event.json
+python network_monitor.py --live --duration 60  # Max 1 minute
 ```
 
 ### Save Report to File

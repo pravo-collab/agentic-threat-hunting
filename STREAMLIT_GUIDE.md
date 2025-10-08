@@ -42,8 +42,21 @@ The app will automatically open in your default web browser at `http://localhost
   - Malware detection
   - Phishing attempts
   - Intrusion attempts
+  - Network traffic events
 - **Upload JSON**: Upload your own security event files
 - **Manual Entry**: Create custom security events via form
+
+### Network Monitor (NEW)
+- **Analyze Network Event**: Analyze network traffic from sample events
+- **Live Traffic Simulation**: Simulate real-time packet capture
+  - **Configurable duration**: 5-60 seconds via slider
+  - Network interface selection
+  - BPF filter support
+  - Packet limit configuration
+- **Network Flow Analysis**: Analyze individual flows manually
+  - Source/Destination IPs and ports
+  - Protocol selection
+  - Packet count configuration
 
 ### Real-Time Analysis
 - **Progress Tracking**: Visual progress bar during analysis

@@ -1,0 +1,32 @@
+{
+  "event_id": "evt_004_suspicious_network",
+  "timestamp": "2025-10-07T14:30:00",
+  "source": "network_monitor",
+  "event_type": "suspicious_connection",
+  "raw_data": {
+    "protocol": "tcp",
+    "source_port": 49152,
+    "destination_port": 4444,
+    "packet_count": 150,
+    "packet_size": 1500,
+    "connection_duration": 300,
+    "bytes_transferred": 225000,
+    "flags": {
+      "syn": true,
+      "ack": true,
+      "psh": true
+    },
+    "payload_analysis": {
+      "encrypted": true,
+      "suspicious_patterns": ["shell", "cmd", "exec"]
+    },
+    "geo_location": {
+      "source_country": "US",
+      "destination_country": "Unknown"
+    }
+  },
+  "source_ip": "192.168.1.100",
+  "destination_ip": "185.220.101.50",
+  "user": "workstation-user",
+  "process": "unknown_process.exe"
+}

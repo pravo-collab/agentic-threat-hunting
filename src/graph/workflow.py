@@ -11,8 +11,40 @@ from src.agents import (
     InvestigationAgent,
     ResponseAgent,
     ReportingAgent,
+    NetworkCaptureAgent,
+    NetworkAnalysisAgent,
 )
 from src.utils.logger import log
+
+
+def route_initial_input(state: Dict[str, Any]) -> Literal["network_capture_node", "detection_agent"]:
+    """Route based on input type: file upload or network capture."""
+    # Check if we should start with network capture
+    current_stage = state.get("current_stage") if isinstance(state, dict) else getattr(state, "current_stage", "detection")
+    
+    if current_stage == "network_capture":
+        return "network_capture_node"
+    return "detection_agent"
+
+
+def should_continue_after_network_capture(state: Dict[str, Any]) -> Literal["network_analysis_node", "error"]:
+    """Determine next step after network capture."""
+    error = state.get("error") if isinstance(state, dict) else getattr(state, "error", None)
+    if error:
+        return "error"
+    return "network_analysis_node"
+
+
+def should_continue_after_network_analysis(state: Dict[str, Any]) -> Literal["deep_dive_agent", "completed", "error"]:
+    """Determine next step after network analysis."""
+    error = state.get("error") if isinstance(state, dict) else getattr(state, "error", None)
+    detection = state.get("detection") if isinstance(state, dict) else getattr(state, "detection", None)
+    
+    if error:
+        return "error"
+    if detection:
+        return "deep_dive_agent"
+    return "completed"
 
 
 def should_continue_after_detection(state: Dict[str, Any]) -> Literal["deep_dive_agent", "completed", "error"]:
@@ -63,16 +95,26 @@ def should_continue_after_reporting(state: Dict[str, Any]) -> Literal["completed
 class ThreatHuntingWorkflow:
     """LangGraph workflow for threat hunting and incident response."""
     
-    def __init__(self):
-        """Initialize the workflow with agents."""
+    def __init__(self, enable_network_capture: bool = False):
+        """Initialize the workflow with agents.
+        
+        Args:
+            enable_network_capture: If True, workflow starts with network capture
+        """
         log.info("Initializing Threat Hunting Workflow")
         
-        # Initialize agents
+        # Initialize core agents
         self.detection_agent = DetectionAgent()
         self.analysis_agent = AnalysisAgent()
         self.investigation_agent = InvestigationAgent()
         self.response_agent = ResponseAgent()
         self.reporting_agent = ReportingAgent()
+        
+        # Initialize network agents
+        self.network_capture_agent = NetworkCaptureAgent()
+        self.network_analysis_agent = NetworkAnalysisAgent()
+        
+        self.enable_network_capture = enable_network_capture
         
         # Build the graph
         self.graph = self._build_graph()
@@ -80,19 +122,56 @@ class ThreatHuntingWorkflow:
         log.info("Workflow initialized successfully")
     
     def _build_graph(self) -> StateGraph:
-        """Build the LangGraph workflow."""
+        """Build the LangGraph workflow with dual paths."""
         # Create the graph
         workflow = StateGraph(AgentState)
         
-        # Add nodes for each agent
+        # Add nodes for network agents (using unique node names)
+        workflow.add_node("network_capture_node", self.network_capture_agent)
+        workflow.add_node("network_analysis_node", self.network_analysis_agent)
+        
+        # Add nodes for core agents
         workflow.add_node("detection_agent", self.detection_agent)
         workflow.add_node("deep_dive_agent", self.analysis_agent)
         workflow.add_node("investigation_agent", self.investigation_agent)
         workflow.add_node("response_agent", self.response_agent)
         workflow.add_node("reporting_agent", self.reporting_agent)
         
-        # Set entry point
-        workflow.set_entry_point("detection_agent")
+        # Add router node for initial routing
+        workflow.add_node("router", lambda state: state)
+        
+        # Set entry point to router
+        workflow.set_entry_point("router")
+        
+        # Route from entry based on input type
+        workflow.add_conditional_edges(
+            "router",
+            route_initial_input,
+            {
+                "network_capture_node": "network_capture_node",
+                "detection_agent": "detection_agent",
+            }
+        )
+        
+        # Network capture path
+        workflow.add_conditional_edges(
+            "network_capture_node",
+            should_continue_after_network_capture,
+            {
+                "network_analysis_node": "network_analysis_node",
+                "error": END,
+            }
+        )
+        
+        workflow.add_conditional_edges(
+            "network_analysis_node",
+            should_continue_after_network_analysis,
+            {
+                "deep_dive_agent": "deep_dive_agent",
+                "completed": END,
+                "error": END,
+            }
+        )
         
         # Add conditional edges
         workflow.add_conditional_edges(
@@ -149,14 +228,16 @@ class ThreatHuntingWorkflow:
     
     def run(self, initial_state: AgentState) -> AgentState:
         """Run the workflow with an initial state."""
-        log.info(f"Starting workflow for event: {initial_state.security_event.event_id}")
+        event_id = initial_state.security_event.event_id if initial_state.security_event else "network_capture"
+        log.info(f"Starting workflow for event: {event_id} (mode: {initial_state.current_stage})")
         
         try:
             # Convert to dict for LangGraph
             state_dict = initial_state.model_dump()
             
             # Run the workflow
-            config = {"configurable": {"thread_id": initial_state.security_event.event_id}}
+            thread_id = initial_state.security_event.event_id if initial_state.security_event else f"network_{id(initial_state)}"
+            config = {"configurable": {"thread_id": thread_id}}
             result = self.graph.invoke(state_dict, config)
             
             # Convert back to AgentState
@@ -177,14 +258,16 @@ class ThreatHuntingWorkflow:
     
     async def arun(self, initial_state: AgentState) -> AgentState:
         """Run the workflow asynchronously."""
-        log.info(f"Starting async workflow for event: {initial_state.security_event.event_id}")
+        event_id = initial_state.security_event.event_id if initial_state.security_event else "network_capture"
+        log.info(f"Starting async workflow for event: {event_id} (mode: {initial_state.current_stage})")
         
         try:
             # Convert to dict for LangGraph
             state_dict = initial_state.model_dump()
             
             # Run the workflow asynchronously
-            config = {"configurable": {"thread_id": initial_state.security_event.event_id}}
+            thread_id = initial_state.security_event.event_id if initial_state.security_event else f"network_{id(initial_state)}"
+            config = {"configurable": {"thread_id": thread_id}}
             result = await self.graph.ainvoke(state_dict, config)
             
             # Convert back to AgentState

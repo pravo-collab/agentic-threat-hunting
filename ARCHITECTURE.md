@@ -2,34 +2,71 @@
 
 ## Overview
 
-The Agentic MultiStage Threat Hunting and Incident Response System is built on a **multi-agent architecture** orchestrated by **LangGraph**. Each agent specializes in a specific phase of the threat hunting and incident response lifecycle.
+The Agentic MultiStage Threat Hunting and Incident Response System is built on a **multi-agent architecture** orchestrated by **LangGraph**. The system supports **two workflow paths** with intelligent routing: traditional file upload analysis and live network traffic capture with full pipeline analysis. Each agent specializes in a specific phase of the threat hunting and incident response lifecycle.
 
 ## High-Level Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        Security Event Input                      │
-│                    (Logs, Alerts, Monitoring)                    │
+│                        Input Options                             │
+│          File Upload (JSON) OR Live Network Capture              │
 └────────────────────────────┬────────────────────────────────────┘
                              │
                              ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                      LangGraph Workflow                          │
+│                   LangGraph Workflow (Dual Path)                 │
 │                                                                   │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐      │
-│  │  Detection   │───▶│   Analysis   │───▶│Investigation │      │
-│  │    Agent     │    │    Agent     │    │    Agent     │      │
-│  └──────────────┘    └──────────────┘    └──────────────┘      │
-│         │                    │                    │              │
-│         ▼                    ▼                    ▼              │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐      │
-│  │   Response   │───▶│  Reporting   │───▶│    Output    │      │
-│  │    Agent     │    │    Agent     │    │              │      │
-│  └──────────────┘    └──────────────┘    └──────────────┘      │
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
-                             │
-                             ▼
+│                      ┌──────────────┐                            │
+│                      │    ROUTER    │                            │
+│                      │  (Entry Point)│                           │
+│                      └──────┬───────┘                            │
+│                             │                                     │
+│              ┌──────────────┴──────────────┐                     │
+│              │                             │                     │
+│       current_stage =              current_stage =               │
+│       "detection"                  "network_capture"             │
+│              │                             │                     │
+│              ▼                             ▼                     │
+│      ┌──────────────┐              ┌──────────────┐             │
+│      │  Detection   │              │   Network    │             │
+│      │    Agent     │              │   Capture    │             │
+│      └──────┬───────┘              └──────┬───────┘             │
+│             │                             │                     │
+│             │                             ▼                     │
+│             │                      ┌──────────────┐             │
+│             │                      │   Network    │             │
+│             │                      │   Analysis   │             │
+│             │                      └──────┬───────┘             │
+│             │                             │                     │
+│             └──────────┬──────────────────┘                     │
+│                        │                                         │
+│                        ▼                                         │
+│                ┌──────────────┐                                 │
+│                │   Analysis   │                                 │
+│                │    Agent     │                                 │
+│                └──────┬───────┘                                 │
+│                       │                                          │
+│                       ▼                                          │
+│                ┌──────────────┐                                 │
+│                │Investigation │                                 │
+│                │    Agent     │                                 │
+│                └──────┬───────┘                                 │
+│                       │                                          │
+│                       ▼                                          │
+│                ┌──────────────┐                                 │
+│                │   Response   │                                 │
+│                │    Agent     │                                 │
+│                └──────┬───────┘                                 │
+│                       │                                          │
+│                       ▼                                          │
+│                ┌──────────────┐                                 │
+│                │  Reporting   │                                 │
+│                │    Agent     │                                 │
+│                └──────┬───────┘                                 │
+│                       │                                          │
+└───────────────────────┼─────────────────────────────────────────┘
+                        │
+                        ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                    Incident Report & Actions                     │
 └─────────────────────────────────────────────────────────────────┘
@@ -139,56 +176,77 @@ IncidentReport
     └─ recommendations: list
 ```
 
-### 3. LangGraph Workflow
+### 3. LangGraph Workflow (Dual Path)
+
+The system implements a **dual-path workflow** with intelligent routing:
+
+#### Workflow Routing Logic
+
+```python
+def route_initial_input(state):
+    if state.current_stage == "network_capture":
+        return "network_capture"  # Path 2
+    return "detection_agent"      # Path 1
+```
+
+#### Path 1: File Upload Workflow
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                      Workflow State Graph                        │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│                        [START]                                    │
-│                           │                                       │
-│                           ▼                                       │
-│                   ┌───────────────┐                              │
-│                   │   Detection   │                              │
-│                   │     Agent     │                              │
-│                   └───────┬───────┘                              │
-│                           │                                       │
-│                    ┌──────┴──────┐                               │
-│                    │             │                                │
-│              Threat Detected?    No Threat                        │
-│                    │             │                                │
-│                   Yes            ▼                                │
-│                    │          [END]                               │
-│                    ▼                                              │
-│            ┌───────────────┐                                     │
-│            │   Analysis    │                                     │
-│            │     Agent     │                                     │
-│            └───────┬───────┘                                     │
-│                    │                                              │
-│                    ▼                                              │
-│            ┌───────────────┐                                     │
-│            │Investigation  │                                     │
-│            │     Agent     │                                     │
-│            └───────┬───────┘                                     │
-│                    │                                              │
-│                    ▼                                              │
-│            ┌───────────────┐                                     │
-│            │   Response    │                                     │
-│            │     Agent     │                                     │
-│            └───────┬───────┘                                     │
-│                    │                                              │
-│                    ▼                                              │
-│            ┌───────────────┐                                     │
-│            │   Reporting   │                                     │
-│            │     Agent     │                                     │
-│            └───────┬───────┘                                     │
-│                    │                                              │
-│                    ▼                                              │
-│                  [END]                                            │
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
+[START] → Router → Detection Agent
+                        │
+                   Threat Detected?
+                    │         │
+                   Yes        No → [END]
+                    │
+                    ▼
+              Analysis Agent
+                    │
+                    ▼
+            Investigation Agent
+                    │
+                    ▼
+              Response Agent
+                    │
+                    ▼
+             Reporting Agent
+                    │
+                    ▼
+                  [END]
 ```
+
+#### Path 2: Network Capture Workflow
+
+```
+[START] → Router → Network Capture Agent
+                        │
+                        ▼
+                Network Analysis Agent
+                        │
+                   Threat Detected?
+                    │         │
+                   Yes        No → [END]
+                    │
+                    ▼
+              Analysis Agent (Convergence Point)
+                    │
+                    ▼
+            Investigation Agent
+                    │
+                    ▼
+              Response Agent
+                    │
+                    ▼
+             Reporting Agent
+                    │
+                    ▼
+                  [END]
+```
+
+**Key Points:**
+- Both paths use the same `AgentState` object
+- Paths converge at the Analysis Agent
+- Network path includes 2 additional agents (Capture + Analysis)
+- Router determines path based on `current_stage` field
 
 ## Agent Specifications
 
@@ -317,6 +375,70 @@ else:
 3. Lessons Learned
 4. Recommendations
 
+### Network Capture Agent (NEW)
+
+**Purpose**: Capture and organize network traffic for analysis
+
+**Inputs**:
+- SecurityEvent (optional - for event-based capture)
+- AgentState
+- Duration (optional - capture time in seconds, max 60)
+
+**Outputs**:
+- NetworkCapture
+- Updated AgentState with network flows
+
+**Key Capabilities**:
+- Packet capture and parsing
+- **Configurable capture duration (5-60 seconds)**
+- Flow aggregation and tracking
+- Anomaly detection in traffic patterns
+- Suspicious flow identification
+- Protocol analysis (TCP, UDP, HTTP, HTTPS, DNS, etc.)
+- Dynamic packet scaling based on duration
+
+**Detection Features**:
+- Suspicious port detection (4444, 31337, 1337, etc.)
+- Known malicious IP pattern matching
+- High packet rate detection
+- Protocol anomaly identification
+- Anomaly score calculation (0.0 - 1.0)
+
+**Configuration**:
+- Default duration: 10 seconds
+- Maximum duration: 180 seconds (3 minutes)
+- Default max packets: 100,000
+- Maximum packets: 1,000,000
+- Packet counts scale linearly with duration
+- Additional flows generated for longer captures (>30s, >60s, >120s)
+
+### Network Analysis Agent (NEW)
+
+**Purpose**: AI-powered analysis of captured network traffic
+
+**Inputs**:
+- NetworkCapture
+- AgentState
+
+**Outputs**:
+- ThreatDetection (if threats found)
+- SecurityEvent (generated from network data)
+- Updated AgentState
+
+**Key Capabilities**:
+- Traffic pattern analysis using LLM
+- Behavioral anomaly detection
+- Protocol-specific threat detection
+- Threat confidence scoring
+- Automatic security event generation
+
+**Analysis Focus**:
+- Connection patterns and frequencies
+- Payload analysis
+- Geolocation anomalies
+- Encrypted traffic analysis
+- Command and control (C2) detection
+
 ## Technology Stack
 
 ### Core Framework
@@ -332,6 +454,13 @@ else:
 - **Loguru**: Structured logging
 - **Rich**: CLI formatting
 - **Python-dotenv**: Configuration management
+- **Streamlit**: Interactive web UI
+- **Plotly**: Data visualization
+
+### Network Monitoring (Optional)
+- **Scapy**: Packet capture and manipulation
+- **PyShark**: Network protocol analysis
+- **dpkt**: Fast packet parsing
 
 ### Testing
 - **Pytest**: Test framework
@@ -367,6 +496,7 @@ The `AgentState` object flows through all agents:
 ```python
 class AgentState:
     security_event: Optional[SecurityEvent]
+    network_capture: Optional[NetworkCapture]  # NEW
     detection: Optional[ThreatDetection]
     analysis: Optional[ThreatAnalysis]
     investigation: Optional[Investigation]
