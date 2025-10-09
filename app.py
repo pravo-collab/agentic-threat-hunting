@@ -12,7 +12,7 @@ import plotly.graph_objects as go
 from typing import Dict, Any, List
 
 from src.config.settings import settings
-from src.models.schemas import SecurityEvent, Severity
+from src.models.schemas import SecurityEvent, SeverityLevel
 
 # Hugging Face Space detection
 IS_HUGGINGFACE = os.getenv("SPACE_ID") is not None
