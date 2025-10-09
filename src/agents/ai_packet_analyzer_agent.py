@@ -329,11 +329,12 @@ class AIPacketAnalyzerAgent:
             log.error(f"Scapy fallback parsing failed: {str(e)}")
             return {'conn': [], 'dns': [], 'http': [], 'ssl': [], 'files': [], 'weird': []}
     
-    def create_traffic_embeddings(self, zeek_logs: Dict[str, List[Dict]]) -> List[Dict[str, Any]]:
+    def create_traffic_embeddings(self, zeek_logs: Dict[str, List[Dict]], pcap_filename: str = None) -> List[Dict[str, Any]]:
         """Convert Zeek logs to text and create embeddings.
         
         Args:
             zeek_logs: Parsed Zeek logs
+            pcap_filename: Name of the PCAP file being analyzed
             
         Returns:
             List of embeddings with metadata
@@ -369,7 +370,8 @@ class AIPacketAnalyzerAgent:
                             'dst_port': entry.get('dst_port', ''),
                             'proto': entry.get('proto', ''),
                             'service': entry.get('service', ''),
-                            'query': entry.get('query', '')
+                            'query': entry.get('query', ''),
+                            'pcap_file': pcap_filename or 'unknown'
                         }
                     })
                     
@@ -457,12 +459,13 @@ class AIPacketAnalyzerAgent:
             log.error(f"Error storing in Pinecone: {str(e)}")
             return False
     
-    def query_with_rag(self, query: str, top_k: int = 5) -> str:
+    def query_with_rag(self, query: str, top_k: int = 5, pcap_filter: str = None) -> str:
         """Query network traffic using RAG (Retrieval-Augmented Generation).
         
         Args:
             query: Natural language query
             top_k: Number of similar results to retrieve
+            pcap_filter: Filter results to specific PCAP file
             
         Returns:
             LLM-generated response
@@ -477,12 +480,20 @@ class AIPacketAnalyzerAgent:
             query_embedding = self.embeddings.embed_query(query)
             
             # Retrieve similar traffic from Pinecone
+            # Build filter for specific PCAP file if provided
+            filter_dict = None
+            if pcap_filter:
+                filter_dict = {'pcap_file': pcap_filter}
             if self.pinecone_index:
-                results = self.pinecone_index.query(
-                    vector=query_embedding,
-                    top_k=top_k,
-                    include_metadata=True
-                )
+                query_params = {
+                    'vector': query_embedding,
+                    'top_k': top_k,
+                    'include_metadata': True
+                }
+                if filter_dict:
+                    query_params['filter'] = filter_dict
+                
+                results = self.pinecone_index.query(**query_params)
                 
                 # Extract context from results
                 context = self._build_context_from_results(results)
@@ -711,7 +722,9 @@ class AIPacketAnalyzerAgent:
         zeek_logs = self.parse_pcap_with_zeek(pcap_file)
         
         # Step 2: Create embeddings
-        embeddings_data = self.create_traffic_embeddings(zeek_logs)
+        import os
+        pcap_filename = os.path.basename(pcap_file)
+        embeddings_data = self.create_traffic_embeddings(zeek_logs, pcap_filename)
         
         # Step 3: Store in Pinecone
         stored = self.store_in_pinecone(embeddings_data)

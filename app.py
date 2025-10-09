@@ -2159,10 +2159,15 @@ def show_pcap_chat_interface():
                     Anomaly Details: {results.get('anomaly_details', [])}
                     """
                     
-                    # Query with RAG
+                    # Get PCAP filename for filtering
+                    import os
+                    pcap_filename = os.path.basename(st.session_state.pcap_file_loaded)
+                    
+                    # Query with RAG - filter by current PCAP file
                     response = agent.query_with_rag(
                         f"Context: {context}\n\nQuestion: {user_question}",
-                        top_k=5
+                        top_k=5,
+                        pcap_filter=pcap_filename
                     )
                     
                     # Add AI response to history
