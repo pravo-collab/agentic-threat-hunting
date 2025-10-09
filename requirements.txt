@@ -48,3 +48,4 @@ streamlit-option-menu>=0.3.6
 # Jupyter (for notebooks)
 jupyter==1.0.0
 ipykernel==6.29.5
+pinecone>=7.0.0

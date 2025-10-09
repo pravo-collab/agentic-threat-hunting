@@ -168,14 +168,15 @@ def main():
     # Header
     st.markdown('<div class="main-header">🛡️ Agentic Threat Hunting & Incident Response</div>', 
                 unsafe_allow_html=True)
+    
     # Sidebar
     with st.sidebar:
         st.image("https://img.icons8.com/color/96/000000/security-checked.png", width=100)
         
         selected = option_menu(
             menu_title=None,
-            options=["Dashboard", "Analyze Event", "Network Monitor", "ML Traffic Classifier", "History", "Settings"],
-            icons=["speedometer2", "shield-check", "diagram-3", "robot", "clock-history", "gear"],
+            options=["Dashboard", "AI Packet Analyzer", "Analyze Event", "Network Monitor", "ML Traffic Classifier", "History", "Settings"],
+            icons=["speedometer2", "cpu", "shield-check", "diagram-3", "robot", "clock-history", "gear"],
             menu_icon="cast",
             default_index=0,
             orientation="vertical"
@@ -196,6 +197,8 @@ def main():
     # Main content based on selection
     if selected == "Dashboard":
         show_dashboard()
+    elif selected == "AI Packet Analyzer":
+        show_ai_packet_analyzer()
     elif selected == "Analyze Event":
         show_analyze_event()
     elif selected == "Network Monitor":
@@ -1801,6 +1804,513 @@ def train_ml_model():
             
     except Exception as e:
         st.error(f"Error training model: {str(e)}")
+        st.exception(e)
+
+
+def show_ai_packet_analyzer():
+    """Show AI Packet Analyzer page."""
+    st.header("🤖 AI Packet Analyzer")
+    
+    st.markdown("""
+    ### Advanced AI-Powered Network Traffic Analysis
+    
+    This agent uses cutting-edge AI technologies for intelligent network analysis:
+    - **Zeek Parsing**: Structured log extraction from PCAPs
+    - **OpenAI Embeddings**: Vector representations of network traffic
+    - **Pinecone Vector DB**: Fast similarity search
+    - **RAG (Retrieval-Augmented Generation)**: Natural language querying
+    - **Anomaly Detection**: Embedding-based deviation detection
+    - **Threat Hunting**: Known malicious pattern matching
+    """)
+    
+    # Check if Pinecone is configured
+    if not settings.PINECONE_API_KEY:
+        st.warning("⚠️ Pinecone API key not configured. Some features will be limited.")
+        st.info("Add PINECONE_API_KEY to your .env file to enable vector storage and advanced querying.")
+    
+    tabs = st.tabs(["💬 Chat with PCAP", "📊 Analyze PCAP", "🔍 Natural Language Query", "🎯 Threat Hunt", "⚙️ Configuration"])
+    
+    # Tab 0: Chat with PCAP
+    with tabs[0]:
+        show_pcap_chat_interface()
+    
+    # Tab 1: Analyze PCAP
+    with tabs[1]:
+        st.subheader("Analyze PCAP with AI")
+        
+        st.info("Upload a PCAP file or select from existing captures for AI-powered analysis.")
+        
+        # Option to select from captures directory or upload
+        analysis_method = st.radio(
+            "Select PCAP source:",
+            ["From Captures Directory", "Upload New PCAP"],
+            horizontal=True
+        )
+        
+        pcap_file = None
+        
+        if analysis_method == "From Captures Directory":
+            # List available PCAP files
+            import os
+            captures_dir = Path("captures")
+            if captures_dir.exists():
+                pcap_files = list(captures_dir.glob("*.pcap"))
+                if pcap_files:
+                    selected_pcap = st.selectbox(
+                        "Select PCAP file:",
+                        options=[str(f) for f in pcap_files],
+                        format_func=lambda x: os.path.basename(x)
+                    )
+                    pcap_file = selected_pcap
+                else:
+                    st.warning("No PCAP files found in captures directory.")
+            else:
+                st.warning("Captures directory not found.")
+        
+        else:  # Upload New PCAP
+            uploaded_file = st.file_uploader("Upload PCAP file", type=['pcap', 'pcapng'])
+            if uploaded_file:
+                # Save uploaded file temporarily
+                temp_path = Path("captures") / uploaded_file.name
+                temp_path.parent.mkdir(exist_ok=True)
+                with open(temp_path, 'wb') as f:
+                    f.write(uploaded_file.read())
+                pcap_file = str(temp_path)
+                st.success(f"Uploaded: {uploaded_file.name}")
+        
+        if pcap_file and st.button("🔍 Analyze with AI", type="primary", use_container_width=True):
+            analyze_pcap_with_ai(pcap_file)
+    
+    # Tab 2: Natural Language Query
+    with tabs[2]:
+        st.subheader("Query Traffic with Natural Language")
+        
+        st.markdown("""
+        Ask questions about your network traffic in plain English. The AI will retrieve 
+        relevant traffic from the vector database and provide intelligent analysis.
+        """)
+        
+        # Example queries
+        with st.expander("📝 Example Queries"):
+            st.markdown("""
+            - "Show me exfiltration attempts via DNS tunneling"
+            - "Find all connections to port 4444"
+            - "What traffic occurred between 2pm and 3pm?"
+            - "Show me all HTTP POST requests"
+            - "Find connections from 192.168.1.100"
+            - "Detect potential C2 communications"
+            - "Show me unusual DNS queries"
+            - "Find large data transfers"
+            """)
+        
+        query = st.text_area("Enter your question:", height=100, placeholder="e.g., Show me suspicious DNS queries...")
+        
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            top_k = st.slider("Number of results to retrieve:", 1, 20, 5)
+        with col2:
+            if st.button("🔍 Query", type="primary", use_container_width=True):
+                if query:
+                    query_traffic_with_rag(query, top_k)
+                else:
+                    st.warning("Please enter a question.")
+    
+    # Tab 3: Threat Hunt
+    with tabs[3]:
+        st.subheader("Threat Hunting")
+        
+        st.markdown("""
+        Search for known malicious patterns using similarity matching against stored traffic.
+        """)
+        
+        # Add malicious pattern
+        with st.expander("➕ Add Malicious Pattern"):
+            pattern_desc = st.text_area("Pattern Description:", 
+                                       placeholder="e.g., Cobalt Strike beacon: Regular 60-second intervals to 185.x.x.x")
+            pattern_type = st.selectbox("Threat Type:", ["C2", "Exfiltration", "Malware", "Scanning", "Other"])
+            pattern_severity = st.selectbox("Severity:", ["Critical", "High", "Medium", "Low"])
+            
+            if st.button("Add Pattern"):
+                if pattern_desc:
+                    add_malicious_pattern(pattern_desc, pattern_type, pattern_severity)
+                else:
+                    st.warning("Please enter a pattern description.")
+        
+        # Hunt for threats
+        st.markdown("### Hunt for Threats")
+        
+        threat_query = st.text_input("Describe the threat to hunt for:", 
+                                     placeholder="e.g., C2 beaconing with regular intervals")
+        hunt_top_k = st.slider("Number of matches:", 1, 20, 10)
+        
+        if st.button("🎯 Hunt", type="primary", use_container_width=True):
+            if threat_query:
+                hunt_for_threats(threat_query, hunt_top_k)
+            else:
+                st.warning("Please enter a threat description.")
+    
+    # Tab 4: Configuration
+    with tabs[4]:
+        st.subheader("AI Packet Analyzer Configuration")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("### API Configuration")
+            st.write(f"**OpenAI API Key:** {'Configured ✅' if settings.OPENAI_API_KEY else 'Not Configured ❌'}")
+            st.write(f"**Pinecone API Key:** {'Configured ✅' if settings.PINECONE_API_KEY else 'Not Configured ❌'}")
+            
+            st.markdown("### Embedding Model")
+            st.write("**Model:** text-embedding-3-small")
+            st.write("**Dimensions:** 1536")
+            st.write("**Cost:** $0.00002 per 1K tokens")
+        
+        with col2:
+            st.markdown("### Vector Database")
+            st.write("**Provider:** Pinecone")
+            st.write("**Index:** network-traffic")
+            st.write("**Metric:** Cosine Similarity")
+            
+            st.markdown("### LLM Configuration")
+            st.write(f"**Model:** {settings.DEFAULT_MODEL}")
+            st.write(f"**Temperature:** {settings.TEMPERATURE}")
+        
+        st.markdown("---")
+        st.markdown("### Features")
+        
+        features = [
+            "✅ Zeek PCAP parsing (with Scapy fallback)",
+            "✅ OpenAI embeddings for traffic representation",
+            "✅ Pinecone vector storage",
+            "✅ RAG-based natural language querying",
+            "✅ Anomaly detection via embedding similarity",
+            "✅ Threat hunting with known patterns",
+            "✅ Real-time analysis and insights"
+        ]
+        
+        for feature in features:
+            st.write(feature)
+
+
+def show_pcap_chat_interface():
+    """Show interactive chat interface for PCAP analysis."""
+    st.subheader("💬 Chat with Your PCAP File")
+    
+    st.markdown("""
+    Upload a PCAP file and ask questions about it in natural language. The AI will analyze 
+    the traffic and answer your questions using advanced RAG (Retrieval-Augmented Generation).
+    """)
+    
+    # Initialize session state for chat
+    if 'pcap_chat_history' not in st.session_state:
+        st.session_state.pcap_chat_history = []
+    if 'pcap_file_loaded' not in st.session_state:
+        st.session_state.pcap_file_loaded = None
+    if 'pcap_analysis_results' not in st.session_state:
+        st.session_state.pcap_analysis_results = None
+    
+    # File upload section
+    st.markdown("### 📁 Step 1: Upload PCAP File")
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        uploaded_file = st.file_uploader(
+            "Choose a PCAP file", 
+            type=['pcap', 'pcapng'],
+            key="pcap_chat_uploader"
+        )
+    
+    with col2:
+        # Option to select from existing captures
+        captures_dir = Path("captures")
+        if captures_dir.exists():
+            pcap_files = list(captures_dir.glob("*.pcap*"))
+            if pcap_files:
+                selected_existing = st.selectbox(
+                    "Or select existing:",
+                    options=["None"] + [str(f) for f in pcap_files],
+                    format_func=lambda x: "Select..." if x == "None" else Path(x).name
+                )
+                if selected_existing != "None":
+                    uploaded_file = selected_existing
+    
+    # Process uploaded file
+    if uploaded_file:
+        if isinstance(uploaded_file, str):
+            # Existing file selected
+            pcap_path = uploaded_file
+            file_name = Path(pcap_path).name
+        else:
+            # New file uploaded
+            pcap_path = Path("captures") / uploaded_file.name
+            pcap_path.parent.mkdir(exist_ok=True)
+            
+            # Save if not already saved or if different
+            if st.session_state.pcap_file_loaded != str(pcap_path):
+                with open(pcap_path, 'wb') as f:
+                    f.write(uploaded_file.read())
+            
+            file_name = uploaded_file.name
+            pcap_path = str(pcap_path)
+        
+        # Check if we need to analyze this file
+        if st.session_state.pcap_file_loaded != pcap_path:
+            with st.spinner(f"🔍 Analyzing {file_name}..."):
+                from src.agents.ai_packet_analyzer_agent import AIPacketAnalyzerAgent
+                
+                try:
+                    agent = AIPacketAnalyzerAgent()
+                    results = agent.analyze_pcap(pcap_path)
+                    
+                    st.session_state.pcap_file_loaded = pcap_path
+                    st.session_state.pcap_analysis_results = results
+                    st.session_state.pcap_chat_history = []
+                    
+                    # Add welcome message
+                    st.session_state.pcap_chat_history.append({
+                        "role": "assistant",
+                        "content": f"✅ Successfully analyzed **{file_name}**!\n\n"
+                                 f"📊 **Summary:**\n"
+                                 f"- Total Logs: {results['total_logs']}\n"
+                                 f"- Embeddings Created: {results['embeddings_created']}\n"
+                                 f"- Anomalies Detected: {results['anomalies_detected']}\n\n"
+                                 f"💬 Ask me anything about this network traffic!"
+                    })
+                    
+                    st.success(f"✅ Loaded {file_name}")
+                    
+                except Exception as e:
+                    st.error(f"Error analyzing PCAP: {str(e)}")
+                    return
+        else:
+            st.info(f"📁 Currently analyzing: **{file_name}**")
+    
+    # Chat interface
+    if st.session_state.pcap_file_loaded:
+        st.markdown("---")
+        st.markdown("### 💬 Step 2: Ask Questions")
+        
+        # Display chat history
+        chat_container = st.container()
+        with chat_container:
+            for message in st.session_state.pcap_chat_history:
+                if message["role"] == "user":
+                    st.markdown(f"**🧑 You:** {message['content']}")
+                else:
+                    st.markdown(f"**🤖 AI:** {message['content']}")
+                st.markdown("---")
+        
+        # Example questions
+        with st.expander("💡 Example Questions"):
+            st.markdown("""
+            - "What are the most common protocols in this traffic?"
+            - "Show me any suspicious DNS queries"
+            - "Are there any connections to unusual ports?"
+            - "What IP addresses communicated the most?"
+            - "Detect any potential data exfiltration"
+            - "Show me all HTTP requests"
+            - "Are there signs of port scanning?"
+            - "What's the total data transferred?"
+            """)
+        
+        # Chat input
+        col1, col2 = st.columns([5, 1])
+        
+        with col1:
+            user_question = st.text_input(
+                "Ask a question about the traffic:",
+                placeholder="e.g., Show me suspicious DNS queries...",
+                key="pcap_chat_input"
+            )
+        
+        with col2:
+            send_button = st.button("Send 📤", type="primary", use_container_width=True)
+        
+        # Process question
+        if send_button and user_question:
+            # Add user message to history
+            st.session_state.pcap_chat_history.append({
+                "role": "user",
+                "content": user_question
+            })
+            
+            # Get AI response
+            with st.spinner("🤔 Thinking..."):
+                from src.agents.ai_packet_analyzer_agent import AIPacketAnalyzerAgent
+                
+                try:
+                    agent = AIPacketAnalyzerAgent()
+                    
+                    # Build context from analysis results
+                    results = st.session_state.pcap_analysis_results
+                    context = f"""
+                    PCAP Analysis Results:
+                    - Total Logs: {results['total_logs']}
+                    - Log Types: {results['log_types']}
+                    - Embeddings Created: {results['embeddings_created']}
+                    - Anomalies Detected: {results['anomalies_detected']}
+                    
+                    Anomaly Details: {results.get('anomaly_details', [])}
+                    """
+                    
+                    # Query with RAG
+                    response = agent.query_with_rag(
+                        f"Context: {context}\n\nQuestion: {user_question}",
+                        top_k=5
+                    )
+                    
+                    # Add AI response to history
+                    st.session_state.pcap_chat_history.append({
+                        "role": "assistant",
+                        "content": response
+                    })
+                    
+                    # Rerun to update chat
+                    st.rerun()
+                    
+                except Exception as e:
+                    st.error(f"Error getting response: {str(e)}")
+        
+        # Clear chat button
+        if st.button("🗑️ Clear Chat"):
+            st.session_state.pcap_chat_history = []
+            st.rerun()
+    
+    else:
+        st.info("👆 Please upload a PCAP file to start chatting!")
+
+
+def analyze_pcap_with_ai(pcap_file: str):
+    """Analyze PCAP file using AI Packet Analyzer."""
+    from src.agents.ai_packet_analyzer_agent import AIPacketAnalyzerAgent
+    
+    try:
+        with st.spinner("🤖 Analyzing PCAP with AI..."):
+            agent = AIPacketAnalyzerAgent()
+            
+            # Analyze PCAP
+            results = agent.analyze_pcap(pcap_file)
+            
+            st.success("✅ AI Analysis Complete!")
+            
+            # Display results
+            st.markdown("---")
+            st.markdown("### 📊 Analysis Summary")
+            
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                st.metric("Total Logs", results['total_logs'])
+            with col2:
+                st.metric("Embeddings Created", results['embeddings_created'])
+            with col3:
+                st.metric("Anomalies Detected", results['anomalies_detected'])
+            with col4:
+                stored_icon = "✅" if results['stored_in_vector_db'] else "❌"
+                st.metric("Vector DB", stored_icon)
+            
+            # Log type breakdown
+            st.markdown("### 📋 Log Types")
+            
+            log_types_df = pd.DataFrame([
+                {'Log Type': log_type.upper(), 'Count': count}
+                for log_type, count in results['log_types'].items()
+                if count > 0
+            ])
+            
+            if not log_types_df.empty:
+                st.dataframe(log_types_df, use_container_width=True)
+            
+            # Anomalies
+            if results['anomaly_details']:
+                st.markdown("### 🚨 Top Anomalies")
+                
+                for i, anomaly in enumerate(results['anomaly_details'], 1):
+                    with st.expander(f"Anomaly {i} - Score: {anomaly['anomaly_score']:.2f}"):
+                        st.write(f"**Description:** {anomaly['text']}")
+                        st.write(f"**Baseline Similarity:** {anomaly['baseline_similarity']:.3f}")
+                        st.json(anomaly['metadata'])
+            
+            # Download results
+            st.download_button(
+                label="📥 Download Analysis Results (JSON)",
+                data=json.dumps(results, indent=2, default=str),
+                file_name=f"ai_analysis_{Path(pcap_file).stem}.json",
+                mime="application/json",
+                use_container_width=True
+            )
+            
+    except Exception as e:
+        st.error(f"Error analyzing PCAP: {str(e)}")
+        st.exception(e)
+
+
+def query_traffic_with_rag(query: str, top_k: int = 5):
+    """Query traffic using RAG."""
+    from src.agents.ai_packet_analyzer_agent import AIPacketAnalyzerAgent
+    
+    try:
+        with st.spinner("🔍 Querying traffic with AI..."):
+            agent = AIPacketAnalyzerAgent()
+            
+            # Query with RAG
+            response = agent.query_with_rag(query, top_k=top_k)
+            
+            st.markdown("### 🤖 AI Response")
+            st.markdown(response)
+            
+    except Exception as e:
+        st.error(f"Error querying traffic: {str(e)}")
+        st.exception(e)
+
+
+def add_malicious_pattern(description: str, threat_type: str, severity: str):
+    """Add malicious pattern for threat hunting."""
+    from src.agents.ai_packet_analyzer_agent import AIPacketAnalyzerAgent
+    
+    try:
+        agent = AIPacketAnalyzerAgent()
+        
+        agent.add_malicious_pattern(
+            description=description,
+            metadata={
+                'threat_type': threat_type,
+                'severity': severity,
+                'added_at': datetime.now().isoformat()
+            }
+        )
+        
+        st.success(f"✅ Added malicious pattern: {threat_type} ({severity})")
+        
+    except Exception as e:
+        st.error(f"Error adding pattern: {str(e)}")
+
+
+def hunt_for_threats(query: str, top_k: int = 10):
+    """Hunt for threats using similarity search."""
+    from src.agents.ai_packet_analyzer_agent import AIPacketAnalyzerAgent
+    
+    try:
+        with st.spinner("🎯 Hunting for threats..."):
+            agent = AIPacketAnalyzerAgent()
+            
+            # Hunt for threats
+            threats = agent.threat_hunt(query, top_k=top_k)
+            
+            if threats:
+                st.markdown(f"### 🎯 Found {len(threats)} Potential Threats")
+                
+                for i, threat in enumerate(threats, 1):
+                    with st.expander(f"Threat {i} - Similarity: {threat['similarity']:.3f}"):
+                        st.write(f"**ID:** {threat['id']}")
+                        st.write(f"**Similarity Score:** {threat['similarity']:.3f}")
+                        st.json(threat['metadata'])
+            else:
+                st.info("No matching threats found.")
+                
+    except Exception as e:
+        st.error(f"Error hunting threats: {str(e)}")
         st.exception(e)
 
 
