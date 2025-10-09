@@ -9,7 +9,7 @@ The Agentic MultiStage Threat Hunting and Incident Response System is built on a
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        Input Options                             │
-│          File Upload (JSON) OR Live Network Capture              │
+│     File Upload (JSON) OR Live Network Capture OR PCAP Chat     │
 └────────────────────────────┬────────────────────────────────────┘
                              │
                              ▼
@@ -36,6 +36,12 @@ The Agentic MultiStage Threat Hunting and Incident Response System is built on a
 │             │                      ┌──────────────┐             │
 │             │                      │   Network    │             │
 │             │                      │   Analysis   │             │
+│             │                      └──────┬───────┘             │
+│             │                             │                     │
+│             │                             ▼                     │
+│             │                      ┌──────────────┐             │
+│             │                      │ ML Traffic   │             │
+│             │                      │  Classifier  │             │
 │             │                      └──────┬───────┘             │
 │             │                             │                     │
 │             └──────────┬──────────────────┘                     │
@@ -70,6 +76,34 @@ The Agentic MultiStage Threat Hunting and Incident Response System is built on a
 ┌─────────────────────────────────────────────────────────────────┐
 │                    Incident Report & Actions                     │
 └─────────────────────────────────────────────────────────────────┘
+
+                    ┌─────────────────────┐
+                    │  Parallel Analysis  │
+                    │  (Streamlit UI)     │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │  AI Packet Analyzer │
+                    │  (Conversational)   │
+                    └──────────┬──────────┘
+                               │
+                    ┌──────────┴──────────┐
+                    │                     │
+                    ▼                     ▼
+            ┌──────────────┐      ┌──────────────┐
+            │     Zeek     │      │   Pinecone   │
+            │   Parsing    │      │  Vector DB   │
+            └──────┬───────┘      └──────┬───────┘
+                   │                     │
+                   └──────────┬──────────┘
+                              │
+                              ▼
+                   ┌─────────────────────┐
+                   │   RAG Pipeline      │
+                   │  (Natural Language  │
+                   │   Q&A Interface)    │
+                   └─────────────────────┘
 ```
 
 ## Component Architecture
@@ -413,6 +447,153 @@ else:
 - High packet rate detection
 - Protocol anomaly identification
 - Anomaly score calculation (0.0 - 1.0)
+
+## AI Packet Analyzer Workflow
+
+The AI Packet Analyzer operates as a parallel analysis path, providing conversational intelligence for PCAP files:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│              AI Packet Analyzer Workflow                         │
+└─────────────────────────────────────────────────────────────────┘
+
+Step 1: PCAP Upload
+    │
+    ▼
+┌─────────────────────┐
+│  Upload PCAP File   │
+│  (.pcap/.pcapng)    │
+└──────────┬──────────┘
+           │
+           ▼
+Step 2: Zeek Parsing
+┌─────────────────────┐
+│  Zeek Parser        │
+│  ├─ conn.log        │
+│  ├─ dns.log         │
+│  ├─ http.log        │
+│  ├─ ssl.log         │
+│  ├─ files.log       │
+│  └─ weird.log       │
+└──────────┬──────────┘
+           │
+           ▼
+Step 3: Text Representation
+┌─────────────────────┐
+│  Log → Text         │
+│  "Network connection│
+│   from 192.168.1.1  │
+│   to 8.8.8.8..."    │
+└──────────┬──────────┘
+           │
+           ▼
+Step 4: Embedding Creation
+┌─────────────────────┐
+│  OpenAI Embeddings  │
+│  text-embedding-    │
+│  3-small            │
+│  [1536 dimensions]  │
+└──────────┬──────────┘
+           │
+           ▼
+Step 5: Vector Storage
+┌─────────────────────┐
+│  Pinecone Vector DB │
+│  ├─ Store vectors   │
+│  ├─ Store metadata  │
+│  └─ Index for search│
+└──────────┬──────────┘
+           │
+           ▼
+Step 6: Baseline & Anomaly Detection
+┌─────────────────────┐
+│  Baseline Model     │
+│  ├─ First 100 flows │
+│  ├─ Similarity calc │
+│  └─ Anomaly scoring │
+└──────────┬──────────┘
+           │
+           ▼
+Step 7: Interactive Chat
+┌─────────────────────────────────────┐
+│  User Question                      │
+│  "Show me DNS tunneling attempts"   │
+└──────────┬──────────────────────────┘
+           │
+           ▼
+┌─────────────────────┐
+│  Query Embedding    │
+│  (OpenAI)           │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│  Vector Search      │
+│  (Pinecone)         │
+│  Top-K Similar      │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│  Context Building   │
+│  Retrieve relevant  │
+│  traffic logs       │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│  RAG Pipeline       │
+│  LLM + Context      │
+│  (GPT-4)            │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────────────────────┐
+│  Natural Language Response          │
+│  "Found 3 potential DNS tunneling   │
+│   attempts from 192.168.1.100..."   │
+└─────────────────────────────────────┘
+```
+
+### AI Packet Analyzer Components
+
+**1. Zeek Parser**
+- Converts raw PCAP to structured logs
+- Extracts protocol-specific information
+- Generates 6 log types (conn, dns, http, ssl, files, weird)
+- Fallback to Scapy if Zeek unavailable
+
+**2. Embedding Engine**
+- OpenAI text-embedding-3-small (1536 dimensions)
+- Converts traffic descriptions to vectors
+- Preserves semantic meaning
+- ~50 flows/second processing
+
+**3. Vector Database (Pinecone)**
+- Serverless vector storage
+- Cosine similarity search
+- Sub-100ms query latency
+- Scalable to millions of flows
+- Metadata filtering
+
+**4. RAG Pipeline**
+- Retrieval-Augmented Generation
+- Context-aware responses
+- Top-K similarity retrieval (default: 5)
+- LLM: GPT-4o-mini
+- Temperature: 0.1 (factual responses)
+
+**5. Anomaly Detection**
+- Baseline establishment (first 100 flows)
+- Embedding similarity comparison
+- Z-score calculation
+- Configurable threshold (default: 0.7)
+
+**6. Threat Hunting**
+- Known malicious pattern library
+- Similarity search against patterns
+- Pattern types: C2, Exfiltration, Malware, Scanning
+- Ranking by similarity score
 
 **Configuration**:
 - Default duration: 10 seconds
