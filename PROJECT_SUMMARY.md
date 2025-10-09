@@ -15,9 +15,10 @@ Praveen_Capstone1/
 │   │   ├── investigation_agent.py # Forensic investigation
 │   │   ├── response_agent.py     # Incident response
 │   │   ├── reporting_agent.py    # Report generation
-│   │   ├── network_capture_agent.py    # Network capture (NEW)
-│   │   ├── network_analysis_agent.py   # Network analysis (NEW)
-│   │   └── ml_traffic_classifier_agent.py # Deep Learning classifier (NEW)
+│   │   ├── network_capture_agent.py    # Network capture
+│   │   ├── network_analysis_agent.py   # Network analysis
+│   │   ├── ml_traffic_classifier_agent.py # Deep Learning classifier
+│   │   └── ai_packet_analyzer_agent.py # AI PCAP chat analyzer (LATEST)
 │   ├── graph/                    # LangGraph workflow
 │   │   └── workflow.py           # Agent orchestration
 │   ├── models/                   # Data models
@@ -42,13 +43,15 @@ Praveen_Capstone1/
 ├── requirements.txt              # Python dependencies
 ├── README.md                     # Main documentation
 ├── QUICKSTART.md                 # Quick start guide
-├── STREAMLIT_GUIDE.md            # Streamlit UI guide (NEW)
-├── NETWORK_MONITORING.md         # Network monitoring guide (NEW)
-├── ML_TRAFFIC_CLASSIFIER.md      # Deep Learning classifier docs (NEW)
+├── STREAMLIT_GUIDE.md            # Streamlit UI guide
+├── NETWORK_MONITORING.md         # Network monitoring guide
+├── ML_TRAFFIC_CLASSIFIER.md      # Deep Learning classifier docs
+├── ML_AGENT_TECHNICAL_GUIDE.md   # ML agent technical documentation
+├── AI_PACKET_ANALYZER.md         # AI Packet Analyzer guide (LATEST)
 ├── ARCHITECTURE.md               # System architecture
 ├── PROJECT_SUMMARY.md            # This file
-├── captures/                     # PCAP files directory (NEW)
-├── models/                       # ML models directory (NEW)
+├── captures/                     # PCAP files directory
+├── models/                       # ML models directory
 ├── Makefile                      # Build automation
 ├── setup.py                      # Package setup
 ├── pytest.ini                    # Test configuration
@@ -75,7 +78,7 @@ Praveen_Capstone1/
   - Configurable duration (5-180s) and packet limits (up to 1M)
   - Cross-platform interface detection
 - **Network Analysis Agent**: AI-powered analysis of network patterns and anomalies
-- **ML Traffic Classifier Agent**: Deep Learning intrusion detection system (NEW)
+- **ML Traffic Classifier Agent**: Deep Learning intrusion detection system
   - 4-layer neural network (128→64→32→16 neurons)
   - 21 enhanced features per flow
   - 8 intrusion types: DoS, Probe, R2L, U2R, Malware, Botnet, Anomaly, Normal
@@ -83,6 +86,15 @@ Praveen_Capstone1/
   - Real-time threat level assessment (Critical, High, Medium, Low, Safe)
   - TensorFlow/Keras backend for scalability
   - Sub-10ms inference per flow
+- **AI Packet Analyzer Agent**: Conversational PCAP analysis (LATEST)
+  - **Zeek 8.0.1**: Professional-grade PCAP parsing with structured logs
+  - **OpenAI Embeddings**: text-embedding-3-small (1536 dimensions)
+  - **Pinecone Vector DB**: Serverless vector storage and similarity search
+  - **RAG Architecture**: Context-aware natural language responses
+  - **Interactive Chat**: ChatGPT-like interface for PCAP Q&A
+  - **Threat Hunting**: Pattern-based malicious traffic detection
+  - **Anomaly Detection**: Baseline deviation analysis
+  - **Multi-format Support**: .pcap and .pcapng files
 
 ### 2. **LangGraph Workflow**
 - State-based agent orchestration
@@ -118,6 +130,15 @@ Praveen_Capstone1/
 ### 5. **Interactive Web UI (NEW)**
 - Modern Streamlit-based interface
 - Real-time agent execution tracking
+- **AI Packet Analyzer Page** (Featured - 2nd in navigation):
+  - **Chat with PCAP**: Interactive conversational interface
+  - Upload or select PCAP files
+  - Ask questions in natural language
+  - Real-time AI responses using RAG
+  - Session-based chat history
+  - Example questions for guidance
+  - Automatic PCAP analysis on upload
+  - Clear chat functionality
 - **ML Traffic Classifier Page**: 
   - Upload or select PCAP files
   - Real-time analysis with DL model
@@ -259,8 +280,15 @@ pytest tests/test_agents.py -v
 
 **Network Analysis:**
 - `scapy` - Packet capture and analysis
+- `zeek` - Professional network security monitoring (v8.0.1)
 - `streamlit` - Web UI framework
 - `plotly` - Interactive visualizations
+
+**AI & Vector Database:**
+- `openai` - OpenAI API for embeddings and LLM
+- `pinecone` - Vector database for similarity search (v7.3.0)
+- `langchain` - LLM application framework
+- `langchain-openai` - OpenAI integration for LangChain
 
 **Data & Utilities:**
 - `pydantic` - Data validation
@@ -368,16 +396,20 @@ For questions or issues:
 
 ## ✅ Project Status
 
-**Status**: Production-Ready with Advanced ML ✓
+**Status**: Production-Ready with Advanced AI & ML ✓
 
 All core features implemented:
-- ✅ 8 specialized agents (5 core + 3 network/ML)
+- ✅ 9 specialized agents (5 core + 4 network/ML/AI)
 - ✅ LangGraph workflow with dual paths
 - ✅ Complete data models (including network schemas)
 - ✅ CLI interface (main + network monitor)
-- ✅ **Deep Learning intrusion detection** (NEW)
-- ✅ **Real-time packet capture & PCAP generation** (NEW)
-- ✅ **Streamlit web UI with ML classifier** (NEW)
+- ✅ **Deep Learning intrusion detection**
+- ✅ **Real-time packet capture & PCAP generation**
+- ✅ **AI-Powered PCAP Chat Interface** (LATEST)
+- ✅ **Zeek Integration** (v8.0.1)
+- ✅ **Pinecone Vector Database** (v7.3.0)
+- ✅ **RAG-Based Analysis**
+- ✅ **Streamlit web UI with ML classifier**
 - ✅ Test suite
 - ✅ Comprehensive documentation
 - ✅ Sample data (events + network traffic)

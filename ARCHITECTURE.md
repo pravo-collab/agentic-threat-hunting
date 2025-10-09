@@ -388,6 +388,15 @@ else:
    - Application type classification (Web, Email, DNS, FTP, SSH, Database)
    - Real-time threat level assessment (Critical, High, Medium, Low, Safe)
    - TensorFlow/Keras backend for scalability
+9. **AI Packet Analyzer Agent**: Conversational PCAP analysis with RAG (NEW)
+   - **Zeek Integration**: Structured PCAP parsing (conn, dns, http, ssl, files, weird logs)
+   - **OpenAI Embeddings**: 1536-dimensional vector representations of traffic
+   - **Pinecone Vector DB**: Scalable similarity search for millions of flows
+   - **RAG Pipeline**: Retrieval-Augmented Generation for intelligent Q&A
+   - **Chat Interface**: Interactive conversational analysis
+   - **Anomaly Detection**: Embedding-based deviation from baseline
+   - **Threat Hunting**: Pattern matching against known malicious traffic
+   - **Natural Language Queries**: Ask questions in plain English
 
 **Key Capabilities**:
 - Packet capture and parsing

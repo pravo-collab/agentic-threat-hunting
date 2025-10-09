@@ -16,6 +16,10 @@ This project implements an agentic AI system that orchestrates multiple speciali
 - **Deep Learning Intrusion Detection**: Neural network-based threat classification with 8 attack types
 - **Real-Time Threat Detection**: Sub-10ms inference for live traffic analysis
 - **Application Classification**: Automatic identification of traffic types (Web, Email, DNS, FTP, SSH, Database)
+- **AI-Powered PCAP Chat**: Interactive conversational interface to ask questions about network traffic
+- **Zeek Integration**: Advanced PCAP parsing with structured log extraction
+- **Vector Database**: Pinecone-powered similarity search for threat hunting
+- **RAG-Based Analysis**: Retrieval-Augmented Generation for intelligent traffic analysis
 - **Full Pipeline Analysis**: Network capture → Analysis → Investigation → Response → Reporting
 - **Automated Incident Response**: Coordinated response actions based on threat severity
 - **Agent Orchestration**: LangGraph-based workflow management with intelligent routing
@@ -48,6 +52,15 @@ The system consists of several specialized agents:
    - Threat levels: Critical, High, Medium, Low, Safe
    - Real-time processing (<10ms per flow)
    - TensorFlow/Keras backend
+9. **AI Packet Analyzer Agent**: Advanced conversational PCAP analysis (NEW)
+   - Zeek-powered PCAP parsing with structured logs
+   - OpenAI embeddings (text-embedding-3-small)
+   - Pinecone vector database for similarity search
+   - RAG-based natural language querying
+   - Interactive chat interface for Q&A
+   - Anomaly detection via embedding similarity
+   - Threat hunting with known malicious patterns
+   - Real-time conversational analysis
 
 **Both paths converge** at the Analysis Agent for consistent threat handling.
 ### Workflow Routing
