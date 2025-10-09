@@ -1,17 +1,22 @@
 """Streamlit UI for Agentic Threat Hunting and Incident Response System."""
 
 import streamlit as st
-import json
-import uuid
-import numpy as np
-import pandas as pd
-from datetime import datetime
-from pathlib import Path
-import plotly.graph_objects as go
-import plotly.express as px
 from streamlit_option_menu import option_menu
+import json
+import os
+from pathlib import Path
+from datetime import datetime
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+from typing import Dict, Any, List
 
-from src.models.schemas import SecurityEvent, AgentState
+from src.config.settings import settings
+from src.models.schemas import SecurityEvent, Severity
+
+# Hugging Face Space detection
+IS_HUGGINGFACE = os.getenv("SPACE_ID") is not None
+
 from src.graph.workflow import ThreatHuntingWorkflow
 from src.config.settings import settings
 
